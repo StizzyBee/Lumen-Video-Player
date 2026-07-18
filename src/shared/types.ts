@@ -62,6 +62,22 @@ export interface SubtitleStyle {
   bold: boolean
 }
 
+export type HdrMode = 'auto' | 'vivid' | 'off'
+export type ResolutionCap = 'auto' | 2160 | 1440 | 1080 | 720 | 480
+
+export interface ColorAdjust {
+  brightness: number
+  contrast: number
+  saturation: number
+  gamma: number
+}
+
+export interface VideoSettings {
+  cap: ResolutionCap
+  hdr: HdrMode
+  color: ColorAdjust
+}
+
 export interface Settings {
   schema: 1
   theme: {
@@ -69,6 +85,7 @@ export interface Settings {
     accent: string
     material: WindowMaterial
   }
+  video: VideoSettings
   playback: {
     rememberPosition: boolean
     /** Position is discarded when within this many seconds of the end */
@@ -147,6 +164,11 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
 export const DEFAULT_SETTINGS: Settings = {
   schema: 1,
   theme: { mode: 'system', accent: '#6c8cff', material: 'mica' },
+  video: {
+    cap: 'auto',
+    hdr: 'auto',
+    color: { brightness: 1, contrast: 1, saturation: 1, gamma: 1 }
+  },
   playback: {
     rememberPosition: true,
     resumeTailSec: 90,

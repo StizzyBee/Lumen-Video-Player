@@ -75,6 +75,19 @@ No telemetry, no update pings, no metadata fetching in core. Anything networked 
 
 **Decision.** Assisted installer (`oneClick: false`, `perMachine: false`, `allowToChangeInstallationDirectory: true`) with `createDesktopShortcut` and `createStartMenuShortcut`. Per-user install avoids a UAC prompt. Verified by silent-installing (`/S`) and asserting `Desktop\Lumen.lnk` exists.
 
+## ADR-012 · Video adjustments within the HTML5 engine's limits
+
+**Context.** Users expect YouTube-style resolution switching and an HDR toggle. Local single files have one encoded resolution and no alternate renditions, and Chromium's `<video>` exposes no API to force a lower *decode* resolution or to toggle true HDR passthrough per file.
+
+**Decision.** Deliver what is genuinely controllable and honest:
+- **Resolution** = a render *downscale* cap. The frame is rasterized at the chosen height then GPU-scaled to fit (`planRender` in `core/video.ts`), which really reduces composited pixels. Options are derived from the source: only tiers ≤ the file's height are offered (you can't add detail), so a 4K/1440p file exposes 1440p/1080p/720p… while a 1080p file caps at 1080p. Full per-file decode-resolution control waits for the libmpv engine (M4, `--vf=scale`).
+- **HDR** = a tone/grade toggle (Auto / vivid / SDR) via CSS filters, plus display-capability detection. True HDR passthrough is an M4 libmpv capability.
+- **Color** = brightness/contrast/saturation via CSS filter functions and gamma via a per-engine SVG `feComponentTransfer` filter — all real, composable, and live.
+
+Filter-string building and resolution math are pure (`core/video.ts`) and unit-tested; the engine only applies their output.
+
+**Consequences.** Honest, working controls today; no fake "1440p" on a 1080p file; a clear upgrade path where the same UI drives real decode-level scaling once libmpv lands.
+
 ## ADR-009 · Product name: "Lumen"
 
 Short, luminous, pairs with the light-focused brand accent (`#6c8cff`), unclaimed among major players; binary `lumen`, no spaces, works as protocol scheme `lumen://`.

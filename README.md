@@ -9,6 +9,7 @@
 - **Home dashboard** — Continue Watching hero, Recent, Favorites, and folder collections with animated cards and thumbnails.
 - **A player UI that gets out of the way** — auto-hiding controls, hover-preview timeline, inline speed/track/subtitle menus, stats overlay.
 - **Themes** — Dark, Light, and OLED Black, with a custom accent system and automatic Windows theme sync. Mica window material on Windows 11.
+- **Video controls** — switch render resolution (e.g. 1440p ↔ 1080p on higher-res files), an HDR/tone toggle, and full color grading (brightness, contrast, saturation, gamma) live during playback.
 - **Library** — your Windows Videos folder indexed automatically on first run, background scanning and watching, instant fuzzy search, grid/list views, resolution filters (4K · 1440p · 1080p · 720p · SD), sorting, favorites, tags.
 - **Command palette** (`Ctrl+Shift+P`) and fully customizable keyboard shortcuts.
 - **Subtitle studio** — external SRT/VTT with live-styled rendering: font, size, color, outline, shadow, background, position, delay.

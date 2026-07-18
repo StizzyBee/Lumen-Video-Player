@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   Palette, Play, AudioLines, Captions, Keyboard, FolderCog, ShieldCheck,
-  FolderPlus, Trash2, RefreshCw, RotateCcw
+  FolderPlus, Trash2, RefreshCw, RotateCcw, MonitorCog
 } from 'lucide-react'
+import { availableResolutions, DEFAULT_COLOR } from '@/core/video'
+import type { ColorAdjust } from '@shared/types'
 import { useSettings } from '@/core/store/settings'
 import { useLibrary } from '@/core/store/library'
 import { useUi } from '@/core/store/ui'
@@ -25,6 +27,7 @@ const FONTS = ['Segoe UI', 'Arial', 'Verdana', 'Trebuchet MS', 'Georgia', 'Conso
 const SECTIONS = [
   { id: 'appearance', label: 'Appearance', icon: <Palette size={16} /> },
   { id: 'playback', label: 'Playback', icon: <Play size={16} /> },
+  { id: 'video', label: 'Video', icon: <MonitorCog size={16} /> },
   { id: 'audio', label: 'Audio', icon: <AudioLines size={16} /> },
   { id: 'subtitles', label: 'Subtitles', icon: <Captions size={16} /> },
   { id: 'shortcuts', label: 'Shortcuts', icon: <Keyboard size={16} /> },
@@ -350,6 +353,7 @@ export function SettingsPage(): ReactNode {
   const s = useSettings((st) => st.settings)
   const patch = useSettings((st) => st.patch)
   const apply = usePlayer((st) => st.applyAudioSettings)
+  const applyVideo = usePlayer((st) => st.applyVideoSettings)
   const [query, setQuery] = useState('')
   const [fontMenu, setFontMenu] = useState<MenuAnchor | null>(null)
   const [version, setVersion] = useState('')
@@ -440,6 +444,55 @@ export function SettingsPage(): ReactNode {
           <Row query={q} label="Hardware decoding" desc="GPU-accelerated video decode (H.264, VP9, AV1, HEVC). Takes effect after restarting Lumen.">
             <Switch ariaLabel="Hardware decoding" checked={s.playback.hardwareDecoding} onChange={(v) => patch({ playback: { hardwareDecoding: v } })} />
           </Row>
+        </Section>
+
+        <Section id="video" label="Video" icon={<MonitorCog size={16} />}>
+          <Row query={q} label="Resolution" desc="Cap the render resolution. Lower settings downscale for smoother playback on weaker GPUs; you can't add detail above a file's own resolution." wide>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              {availableResolutions(undefined).map((o) => (
+                <Button
+                  key={String(o.value)}
+                  size="sm"
+                  variant={s.video.cap === o.value ? 'accentSoft' : 'ghost'}
+                  onClick={() => { patch({ video: { cap: o.value } }); applyVideo() }}
+                >
+                  {o.value === 'auto' ? 'Auto' : o.label}
+                </Button>
+              ))}
+            </div>
+          </Row>
+          <Row query={q} label="HDR / tone mapping" desc="Vivid grades toward richer color; SDR tones highlights down. Native HDR passthrough arrives with the libmpv engine.">
+            <div style={{ display: 'flex', gap: 6 }}>
+              {(['auto', 'vivid', 'off'] as const).map((m) => (
+                <Button key={m} size="sm" variant={s.video.hdr === m ? 'accentSoft' : 'ghost'} onClick={() => { patch({ video: { hdr: m } }); applyVideo() }}>
+                  {m === 'auto' ? 'Auto' : m === 'vivid' ? 'HDR vivid' : 'SDR'}
+                </Button>
+              ))}
+            </div>
+          </Row>
+          {(['brightness', 'contrast', 'saturation', 'gamma'] as const).map((key) => {
+            const bounds = { brightness: [0.5, 1.5], contrast: [0.5, 1.5], saturation: [0, 2], gamma: [0.6, 1.8] }[key]
+            return (
+              <Row key={key} query={q} label={key[0].toUpperCase() + key.slice(1)} wide>
+                <Slider
+                  ariaLabel={key}
+                  value={s.video.color[key]}
+                  min={bounds[0]}
+                  max={bounds[1]}
+                  step={0.01}
+                  onChange={(v) => { patch({ video: { color: { ...s.video.color, [key]: Math.round(v * 100) / 100 } as ColorAdjust } }); applyVideo() }}
+                />
+                <span className={styles.sliderValue}>{Math.round(s.video.color[key] * 100)}%</span>
+              </Row>
+            )
+          })}
+          {!q && (
+            <div className={styles.rowBlock} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Button size="sm" variant="ghost" icon={<RotateCcw size={13} />} onClick={() => { patch({ video: { cap: 'auto', hdr: 'auto', color: { ...DEFAULT_COLOR } } }); applyVideo() }}>
+                Reset video settings
+              </Button>
+            </div>
+          )}
         </Section>
 
         <Section id="audio" label="Audio" icon={<AudioLines size={16} />}>

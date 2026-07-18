@@ -44,6 +44,12 @@ export interface PlaybackEngine {
   setNormalize(on: boolean): void
   setEq(bandsDb: number[], enabled: boolean): void
   setFit(fit: VideoFit): void
+  /** Color/HDR grade via CSS + SVG filters */
+  setVideoGrade(color: import('@shared/types').ColorAdjust, hdr: import('@shared/types').HdrMode): void
+  /** Cap the render (downscale) height; 'auto' renders at native size */
+  setResolutionCap(cap: import('@shared/types').ResolutionCap): void
+  /** Natural source dimensions, once known */
+  sourceSize(): { width: number; height: number } | null
   frameStep(dir: 1 | -1): void
   captureFrame(): Promise<string | null> // png data URL
   requestPip(): Promise<void>

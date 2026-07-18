@@ -1,5 +1,9 @@
 import type { EngineCaps, EngineEvents, PlaybackEngine, PlaybackStatus, VideoFit } from './types'
 import { setVideoSource } from '@/core/media'
+import { planRender, buildFilter } from '@/core/video'
+import type { ColorAdjust, HdrMode, ResolutionCap } from '@shared/types'
+
+let gammaSeq = 0
 
 // Containers Chromium's demuxer handles. Codec support inside them varies —
 // errors surface as honest messages with the M4 mpv path called out.
@@ -20,6 +24,13 @@ export class HtmlVideoEngine implements PlaybackEngine {
   }
 
   private video: HTMLVideoElement
+  private host: HTMLElement | null = null
+  private resizeObs: ResizeObserver | null = null
+  private cap: ResolutionCap = 'auto'
+  private fit: VideoFit = 'contain'
+  private gammaFilter: SVGFilterElement | null = null
+  private gammaFuncs: SVGElement[] = []
+  private gammaId = `lumen-gamma-${gammaSeq++}`
   private listeners = new Map<keyof EngineEvents, Set<Handler>>()
   private ctx: AudioContext | null = null
   private gain: GainNode | null = null
@@ -111,10 +122,16 @@ export class HtmlVideoEngine implements PlaybackEngine {
     v.addEventListener('seeking', () => this.emit('time', v.currentTime))
     v.addEventListener('seeked', () => this.emit('time', v.currentTime))
     v.addEventListener('resize', () => {
-      if (v.videoWidth) this.emit('dimensions', { width: v.videoWidth, height: v.videoHeight })
+      if (v.videoWidth) {
+        this.emit('dimensions', { width: v.videoWidth, height: v.videoHeight })
+        this.applyResolutionCap()
+      }
     })
     v.addEventListener('loadedmetadata', () => {
-      if (v.videoWidth) this.emit('dimensions', { width: v.videoWidth, height: v.videoHeight })
+      if (v.videoWidth) {
+        this.emit('dimensions', { width: v.videoWidth, height: v.videoHeight })
+        this.applyResolutionCap()
+      }
     })
     v.addEventListener('error', () => {
       const err = v.error
@@ -149,7 +166,85 @@ export class HtmlVideoEngine implements PlaybackEngine {
   }
 
   attach(host: HTMLElement): void {
+    this.host = host
     host.appendChild(this.video)
+    this.ensureGammaFilter()
+    this.resizeObs?.disconnect()
+    this.resizeObs = new ResizeObserver(() => this.applyResolutionCap())
+    this.resizeObs.observe(host)
+    this.applyResolutionCap()
+  }
+
+  private ensureGammaFilter(): void {
+    if (this.gammaFilter) return
+    const NS = 'http://www.w3.org/2000/svg'
+    const svg = document.createElementNS(NS, 'svg')
+    svg.setAttribute('width', '0')
+    svg.setAttribute('height', '0')
+    svg.setAttribute('aria-hidden', 'true')
+    svg.style.cssText = 'position:absolute;width:0;height:0;pointer-events:none'
+    const filter = document.createElementNS(NS, 'filter')
+    filter.setAttribute('id', this.gammaId)
+    filter.setAttribute('color-interpolation-filters', 'sRGB')
+    const transfer = document.createElementNS(NS, 'feComponentTransfer')
+    for (const ch of ['feFuncR', 'feFuncG', 'feFuncB']) {
+      const f = document.createElementNS(NS, ch)
+      f.setAttribute('type', 'gamma')
+      f.setAttribute('amplitude', '1')
+      f.setAttribute('exponent', '1')
+      f.setAttribute('offset', '0')
+      transfer.appendChild(f)
+      this.gammaFuncs.push(f as unknown as SVGElement)
+    }
+    filter.appendChild(transfer)
+    svg.appendChild(filter)
+    document.body.appendChild(svg)
+    this.gammaFilter = filter as unknown as SVGFilterElement
+  }
+
+  setVideoGrade(color: ColorAdjust, hdr: HdrMode): void {
+    this.ensureGammaFilter()
+    for (const f of this.gammaFuncs) f.setAttribute('exponent', String(color.gamma))
+    this.video.style.filter = buildFilter(color, hdr, this.gammaId)
+  }
+
+  setResolutionCap(cap: ResolutionCap): void {
+    this.cap = cap
+    this.applyResolutionCap()
+  }
+
+  sourceSize(): { width: number; height: number } | null {
+    return this.video.videoWidth ? { width: this.video.videoWidth, height: this.video.videoHeight } : null
+  }
+
+  private applyResolutionCap(): void {
+    const v = this.video
+    const host = this.host
+    const plan = host
+      ? planRender(host.clientWidth, host.clientHeight, v.videoWidth, v.videoHeight, this.cap)
+      : { raster: null }
+    if (!plan.raster) {
+      // native: fill host, honor fit mode
+      v.style.position = ''
+      v.style.left = ''
+      v.style.top = ''
+      v.style.transform = ''
+      v.style.transformOrigin = ''
+      v.style.width = '100%'
+      v.style.height = '100%'
+      v.style.objectFit = this.fit
+      return
+    }
+    const { w, h, left, top, scale } = plan.raster
+    // rasterize at the capped resolution, then GPU-scale the layer to fit
+    v.style.position = 'absolute'
+    v.style.left = `${left}px`
+    v.style.top = `${top}px`
+    v.style.width = `${w}px`
+    v.style.height = `${h}px`
+    v.style.objectFit = 'fill'
+    v.style.transformOrigin = 'top left'
+    v.style.transform = `scale(${scale})`
   }
 
   private ensureAudioGraph(): void {
@@ -266,7 +361,8 @@ export class HtmlVideoEngine implements PlaybackEngine {
     this.rewireGraph()
   }
   setFit(fit: VideoFit): void {
-    this.video.style.objectFit = fit
+    this.fit = fit
+    this.applyResolutionCap()
   }
   frameStep(dir: 1 | -1): void {
     this.video.pause()
@@ -304,10 +400,15 @@ export class HtmlVideoEngine implements PlaybackEngine {
   }
   destroy(): void {
     this.stopTimeLoop()
+    this.resizeObs?.disconnect()
+    this.resizeObs = null
     this.video.pause()
     this.video.removeAttribute('src')
     this.video.load()
     this.video.remove()
+    this.gammaFilter?.ownerSVGElement?.remove()
+    this.gammaFilter = null
+    this.gammaFuncs = []
     void this.ctx?.close().catch(() => {})
     this.ctx = null
     this.listeners.clear()

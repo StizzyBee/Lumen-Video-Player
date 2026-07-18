@@ -2,8 +2,11 @@ import { useRef, useState, type ReactNode } from 'react'
 import {
   Play, Pause, SkipBack, SkipForward, Volume2, Volume1, VolumeX, Maximize, Minimize,
   Captions, Repeat, Repeat1, PictureInPicture2, GalleryVerticalEnd, MoreHorizontal,
-  Camera, Activity, AudioLines, ListVideo, PanelRightClose, FilePlus2, RotateCcw, RotateCw, Bookmark
+  Camera, Activity, AudioLines, ListVideo, PanelRightClose, FilePlus2, RotateCcw, RotateCw, Bookmark,
+  MonitorCog, Sun
 } from 'lucide-react'
+import { availableResolutions, DEFAULT_COLOR } from '@/core/video'
+import type { ColorAdjust } from '@shared/types'
 import { usePlayer } from '@/core/store/player'
 import { useLibrary } from '@/core/store/library'
 import { useSettings } from '@/core/store/settings'
@@ -20,7 +23,66 @@ import styles from './ControlsBar.module.css'
 const SPEED_PRESETS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3]
 const NO_BOOKMARKS: number[] = []
 
-type OpenMenu = 'subs' | 'speed' | 'audio' | 'more' | null
+function isNeutralColor(c: ColorAdjust): boolean {
+  return c.brightness === 1 && c.contrast === 1 && c.saturation === 1 && c.gamma === 1
+}
+
+function ColorDialog({
+  open,
+  color,
+  onChange,
+  onClose
+}: {
+  open: boolean
+  color: ColorAdjust
+  onChange: (c: ColorAdjust) => void
+  onClose: () => void
+}): ReactNode {
+  const rows: Array<{ key: keyof ColorAdjust; label: string; min: number; max: number }> = [
+    { key: 'brightness', label: 'Brightness', min: 0.5, max: 1.5 },
+    { key: 'contrast', label: 'Contrast', min: 0.5, max: 1.5 },
+    { key: 'saturation', label: 'Saturation', min: 0, max: 2 },
+    { key: 'gamma', label: 'Gamma', min: 0.6, max: 1.8 }
+  ]
+  return (
+    <Dialog
+      open={open}
+      title="Color adjustments"
+      onClose={onClose}
+      actions={
+        <>
+          <Button variant="ghost" icon={<RotateCcw size={15} />} onClick={() => onChange({ ...DEFAULT_COLOR })}>
+            Reset
+          </Button>
+          <Button variant="primary" onClick={onClose}>Done</Button>
+        </>
+      }
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
+        {rows.map((r) => (
+          <div key={r.key} style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-4)' }}>
+            <span style={{ width: 84, fontWeight: 600, fontSize: 'var(--fs-body)' }}>{r.label}</span>
+            <div style={{ flex: 1 }}>
+              <Slider
+                ariaLabel={r.label}
+                value={color[r.key]}
+                min={r.min}
+                max={r.max}
+                step={0.01}
+                onChange={(v) => onChange({ ...color, [r.key]: Math.round(v * 100) / 100 })}
+              />
+            </div>
+            <span className="tabular" style={{ width: 44, textAlign: 'right', color: 'var(--text-2)', fontSize: 'var(--fs-caption)' }}>
+              {Math.round(color[r.key] * 100)}%
+            </span>
+          </div>
+        ))}
+      </div>
+    </Dialog>
+  )
+}
+
+type OpenMenu = 'subs' | 'speed' | 'audio' | 'video' | 'more' | null
 
 export function ControlsBar({ onMenuOpenChange }: { onMenuOpenChange: (open: boolean) => void }): ReactNode {
   const p = usePlayer()
@@ -34,6 +96,7 @@ export function ControlsBar({ onMenuOpenChange }: { onMenuOpenChange: (open: boo
   const [speedDialog, setSpeedDialog] = useState(false)
   const [customSpeed, setCustomSpeed] = useState('1.00')
   const [remaining, setRemaining] = useState(false)
+  const [colorDialog, setColorDialog] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
 
   const openMenu = (which: Exclude<OpenMenu, null>) => (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -133,6 +196,54 @@ export function ControlsBar({ onMenuOpenChange }: { onMenuOpenChange: (open: boo
     }
   ]
 
+  const video = settings.video
+  const setCap = (cap: typeof video.cap): void => {
+    patch({ video: { cap } })
+    p.applyVideoSettings()
+  }
+  const setHdr = (hdr: typeof video.hdr): void => {
+    patch({ video: { hdr } })
+    p.applyVideoSettings()
+  }
+  const setColor = (color: ColorAdjust): void => {
+    patch({ video: { color } })
+    p.applyVideoSettings()
+  }
+  const resOptions = availableResolutions(p.dimensions?.height)
+
+  const videoEntries: MenuEntry[] = [
+    { type: 'header', label: 'Resolution' },
+    ...resOptions.map((o) => ({
+      id: `res-${o.value}`,
+      label: o.isSource ? `${o.label} · source` : o.label,
+      checked: video.cap === o.value,
+      onSelect: () => setCap(o.value)
+    })),
+    { type: 'separator' },
+    { type: 'header', label: 'HDR / tone' },
+    ...([
+      ['auto', 'Auto (match display)'],
+      ['vivid', 'HDR vivid'],
+      ['off', 'SDR (tone down)']
+    ] as const).map(([mode, label]) => ({
+      id: `hdr-${mode}`,
+      label,
+      checked: video.hdr === mode,
+      onSelect: () => setHdr(mode)
+    })),
+    { type: 'separator' },
+    { id: 'color', label: 'Color adjustments…', icon: <Sun size={16} />, onSelect: () => setColorDialog(true) },
+    {
+      id: 'resetvideo',
+      label: 'Reset video settings',
+      icon: <RotateCcw size={16} />,
+      onSelect: () => {
+        patch({ video: { cap: 'auto', hdr: 'auto', color: { ...DEFAULT_COLOR } } })
+        p.applyVideoSettings()
+      }
+    }
+  ]
+
   const moreEntries: MenuEntry[] = [
     { id: 'shot', label: 'Save screenshot', icon: <Camera size={16} />, hint: 'Ctrl+Shift+S', onSelect: () => void p.screenshot() },
     { id: 'stats', label: p.statsVisible ? 'Hide stats' : 'Show stats', icon: <Activity size={16} />, hint: 'I', onSelect: () => p.toggleStats() },
@@ -225,6 +336,15 @@ export function ControlsBar({ onMenuOpenChange }: { onMenuOpenChange: (open: boo
               <AudioLines size={19} />
             </IconButton>
 
+            <IconButton
+              onVideo
+              label="Video & display"
+              active={video.cap !== 'auto' || video.hdr !== 'auto' || !isNeutralColor(video.color)}
+              onClick={openMenu('video')}
+            >
+              <MonitorCog size={19} />
+            </IconButton>
+
             <button
               className={`${styles.speedLabel} ${p.rate !== 1 ? styles.speedActive : ''}`}
               onClick={(e) => openMenu('speed')(e)}
@@ -265,7 +385,11 @@ export function ControlsBar({ onMenuOpenChange }: { onMenuOpenChange: (open: boo
       <Menu open={menu === 'subs'} anchor={anchor} entries={subsEntries} onClose={closeMenu} sticky minWidth={240} />
       <Menu open={menu === 'speed'} anchor={anchor} entries={speedEntries} onClose={closeMenu} minWidth={180} />
       <Menu open={menu === 'audio'} anchor={anchor} entries={audioEntries} onClose={closeMenu} sticky minWidth={220} />
+      <Menu open={menu === 'video'} anchor={anchor} entries={videoEntries} onClose={closeMenu} sticky minWidth={230} />
       <Menu open={menu === 'more'} anchor={anchor} entries={moreEntries} onClose={closeMenu} minWidth={220} />
+
+      <ColorDialog open={colorDialog} color={video.color} onChange={setColor} onClose={() => setColorDialog(false)} />
+
 
       <input
         ref={fileInput}

@@ -56,6 +56,8 @@ interface PlayerStore {
   togglePip(): void
   setFit(fit: VideoFit): void
   toggleBookmarkHere(): void
+  /** Push settings.video (resolution cap, HDR, color) into the engine */
+  applyVideoSettings(): void
   screenshot(): Promise<void>
   applyAudioSettings(): void
   engineQuality(): { dropped: number; total: number } | null
@@ -188,6 +190,7 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
     void e.load(platform.media.url(item.path), { startAt, autoplay: true })
     e.setRate(settings.playback.defaultRate)
     get().applyAudioSettings()
+    get().applyVideoSettings()
 
     useLibrary.getState().patchItem(item.id, {
       lastPlayedAt: Date.now(),
@@ -407,6 +410,13 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
     engine.setBoost(a.boost)
     engine.setNormalize(a.normalize)
     engine.setEq(a.eq, a.eqEnabled)
+  },
+
+  applyVideoSettings() {
+    if (!engine) return
+    const v = useSettings.getState().settings.video
+    engine.setResolutionCap(v.cap)
+    engine.setVideoGrade(v.color, v.hdr)
   },
 
   engineQuality() {
