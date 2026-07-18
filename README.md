@@ -43,6 +43,10 @@ npm run dist         # package a Windows installer (electron-builder)
 
 Requires Node 20+ on Windows 10/11.
 
+## Install
+
+Download **Lumen Setup x.y.z.exe** from the [latest release](https://github.com/StizzyBee/Lumen-Video-Player/releases/latest). The installer lets you pick the install location and creates Desktop and Start Menu shortcuts. It's unsigned, so Windows SmartScreen may warn on first run — choose *More info → Run anyway*.
+
 ## Repository map
 
 ```

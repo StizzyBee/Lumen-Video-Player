@@ -61,6 +61,20 @@ No telemetry, no update pings, no metadata fetching in core. Anything networked 
 
 ---
 
+## ADR-010 · UI scale via native page zoom, not CSS `zoom`
+
+**Context.** The interface-scale setting first used `#root { zoom: var(--ui-scale) }`. CSS `zoom` visually scales content but Chromium's pointer hit-testing did not always agree with the scaled geometry at the window edges, contributing to controls that needed a pixel-perfect click.
+
+**Decision.** On desktop, apply the scale through `webContents.setZoomFactor()` (a real page zoom that scales layout *and* input coordinates together) and pin `--ui-scale` to 1. The browser mock keeps CSS `zoom` since it has no Electron zoom API. See `core/store/settings.ts`.
+
+**Consequences.** Hit-testing is exact at every scale; scale now also affects native dialogs consistently.
+
+## ADR-011 · Installer: assisted NSIS with shortcuts
+
+**Context.** v0.1.0 shipped a one-click NSIS installer with no Desktop shortcut and no install-location choice.
+
+**Decision.** Assisted installer (`oneClick: false`, `perMachine: false`, `allowToChangeInstallationDirectory: true`) with `createDesktopShortcut` and `createStartMenuShortcut`. Per-user install avoids a UAC prompt. Verified by silent-installing (`/S`) and asserting `Desktop\Lumen.lnk` exists.
+
 ## ADR-009 · Product name: "Lumen"
 
 Short, luminous, pairs with the light-focused brand accent (`#6c8cff`), unclaimed among major players; binary `lumen`, no spaces, works as protocol scheme `lumen://`.
