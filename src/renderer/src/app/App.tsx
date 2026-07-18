@@ -47,7 +47,7 @@ function useGlobalShortcuts(): void {
     const onKey = (e: KeyboardEvent): void => {
       const binding = bindingFromEvent(e)
       if (!binding) return
-      const target = e.target as HTMLElement | null
+      const target = e.target instanceof Element ? e.target : null
       const inField = !!target?.closest('input, textarea, select, [contenteditable="true"]')
       if (inField && !binding.startsWith('Ctrl+') && binding !== 'Escape') return
       const keymap = resolveKeymap(useSettings.getState().settings.shortcuts)
