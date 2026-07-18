@@ -26,7 +26,9 @@
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  padding: var(--sp-3) var(--sp-4) 40px;
+  /* Top padding clears the 42px app title bar (z-index above the player), so
+     the Back button is never occluded by the window drag/caption region. */
+  padding: 48px var(--sp-4) 40px;
   background: var(--scrim-top);
   color: #fff;
   pointer-events: none;

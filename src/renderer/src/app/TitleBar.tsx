@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Minus, Square, Copy, X, Search } from 'lucide-react'
 import { platform, isDesktop } from '@/core/platform'
 import { useUi } from '@/core/store/ui'
+import { usePlayer } from '@/core/store/player'
 import { Kbd } from '@/components/ui/bits'
 import styles from './TitleBar.module.css'
 
@@ -19,6 +20,7 @@ export function LumenGlyph({ size = 18 }: { size?: number }): ReactNode {
 
 export function TitleBar(): ReactNode {
   const setPaletteOpen = useUi((s) => s.setPaletteOpen)
+  const playerOpen = usePlayer((s) => s.item !== null)
   const [maximized, setMaximized] = useState(false)
 
   useEffect(() => {
@@ -40,11 +42,13 @@ export function TitleBar(): ReactNode {
       </div>
 
       <div className={styles.searchWrap}>
-        <button className={styles.searchPill} onClick={() => setPaletteOpen(true, '')}>
-          <Search size={13} strokeWidth={2} />
-          <span className={styles.grow}>Search your library</span>
-          <Kbd>Ctrl K</Kbd>
-        </button>
+        {!playerOpen && (
+          <button className={styles.searchPill} onClick={() => setPaletteOpen(true, '')}>
+            <Search size={13} strokeWidth={2} />
+            <span className={styles.grow}>Search your library</span>
+            <Kbd>Ctrl K</Kbd>
+          </button>
+        )}
       </div>
 
       {isDesktop ? (
