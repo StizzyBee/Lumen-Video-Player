@@ -49,6 +49,18 @@ const api: LumenApi = {
     save: (p) => ipcRenderer.invoke('playlists:save', p),
     remove: (id) => ipcRenderer.invoke('playlists:remove', id)
   },
+  mpv: {
+    detect: () => ipcRenderer.invoke('mpv:detect'),
+    locate: () => ipcRenderer.invoke('mpv:locate'),
+    play: (path, opts) => ipcRenderer.invoke('mpv:play', path, opts),
+    playPause: (paused) => ipcRenderer.send('mpv:play-pause', paused),
+    seek: (sec) => ipcRenderer.send('mpv:seek', sec),
+    setRate: (rate) => ipcRenderer.send('mpv:set-rate', rate),
+    setVolume: (v) => ipcRenderer.send('mpv:set-volume', v),
+    setMuted: (m) => ipcRenderer.send('mpv:set-muted', m),
+    stop: () => ipcRenderer.send('mpv:stop'),
+    onEvent: (cb) => on('mpv:event', cb)
+  },
   shell: {
     showInFolder: (path) => ipcRenderer.send('shell:show-in-folder', path),
     saveScreenshot: (pngDataUrl, suggestedName) =>

@@ -7,6 +7,8 @@ import { mergeSettings, type Playlist, type Settings } from '@shared/types'
 import type { DeepPartial } from '@shared/lumen-api'
 import { pathGuard, mediaUrl } from './protocol'
 import { setMiniMode } from './window'
+import { MpvManager } from './mpv/manager'
+import { app as electronApp } from 'electron'
 
 export interface IpcDeps {
   win: BrowserWindow
@@ -20,6 +22,40 @@ export interface IpcDeps {
 export function registerIpc(deps: IpcDeps): void {
   const { library, settings, playlists, thumbsDir } = deps
   const win = (): BrowserWindow => deps.win
+
+  // ── mpv sidecar engine (beta) ──────────────────────────────────────────────
+  const mpv = new MpvManager(
+    (channel, payload) => {
+      if (!win().isDestroyed()) win().webContents.send(channel, payload)
+    },
+    () => ({
+      userPath: settings.get().video?.mpvPath || undefined,
+      bundledPath: join(process.resourcesPath ?? '', 'mpv', 'mpv.exe'),
+      pathEnv: process.env.PATH,
+      localAppData: electronApp.getPath('appData').replace(/Roaming$/, 'Local'),
+      programFiles: process.env['ProgramFiles'],
+      programFilesX86: process.env['ProgramFiles(x86)']
+    })
+  )
+  ipcMain.handle('mpv:detect', () => mpv.detect(true))
+  ipcMain.handle('mpv:locate', async () => {
+    const res = await dialog.showOpenDialog(win(), {
+      title: 'Locate mpv.exe',
+      properties: ['openFile'],
+      filters: [{ name: 'mpv', extensions: ['exe'] }]
+    })
+    if (res.canceled || !res.filePaths[0]) return null
+    const chosen = res.filePaths[0]
+    settings.update((s) => ({ ...s, video: { ...s.video, mpvPath: chosen } }))
+    return mpv.refresh()
+  })
+  ipcMain.handle('mpv:play', (_e, path: string, opts) => mpv.load(path, opts))
+  ipcMain.on('mpv:play-pause', (_e, paused: boolean) => (paused ? mpv.pause() : mpv.play()))
+  ipcMain.on('mpv:seek', (_e, sec: number) => mpv.seek(sec))
+  ipcMain.on('mpv:set-rate', (_e, r: number) => mpv.setRate(r))
+  ipcMain.on('mpv:set-volume', (_e, v: number) => mpv.setVolume(v))
+  ipcMain.on('mpv:set-muted', (_e, m: boolean) => mpv.setMuted(m))
+  ipcMain.on('mpv:stop', () => mpv.stop())
 
   // ── window ────────────────────────────────────────────────────────────────
   ipcMain.on('win:minimize', () => win().minimize())

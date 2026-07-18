@@ -68,6 +68,22 @@ export interface LumenApi {
     save(p: Playlist): Promise<void>
     remove(id: string): Promise<void>
   }
+  /** Optional mpv sidecar engine for MKV/AVI/HEVC/HDR (beta). */
+  mpv: {
+    /** Resolve an installed mpv.exe path, or null if not found */
+    detect(): Promise<string | null>
+    /** Open a picker to locate mpv.exe manually; persists + returns the path */
+    locate(): Promise<string | null>
+    /** Launch mpv to play a file; resolves once the process is spawned */
+    play(path: string, opts: { hdr: 'auto' | 'vivid' | 'off'; hwdec: boolean; volume: number; startAt?: number }): Promise<void>
+    playPause(paused: boolean): void
+    seek(sec: number): void
+    setRate(rate: number): void
+    setVolume(v: number): void
+    setMuted(m: boolean): void
+    stop(): void
+    onEvent(cb: (e: { type: string; name?: string; data?: unknown; message?: string }) => void): Unsubscribe
+  }
   shell: {
     showInFolder(path: string): void
     /** Save a captured frame; returns the chosen path or null if cancelled */

@@ -29,6 +29,7 @@ function boot(): void {
   booted = true
   setupCommands()
   void useSettings.getState().init()
+  void usePlayer.getState().detectMpv()
   void useLibrary.getState().init().then(() => kickThumbnailQueue())
   useLibrary.subscribe((s, prev) => {
     if (s.items !== prev.items) kickThumbnailQueue()

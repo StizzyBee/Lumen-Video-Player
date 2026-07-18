@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   ChevronLeft, Play, Pause, Volume2, VolumeX, FastForward, RotateCcw,
-  FolderOpen, TriangleAlert, Camera, Activity, Repeat, X
+  FolderOpen, TriangleAlert, Camera, Activity, Repeat, X, MonitorPlay, Download
 } from 'lucide-react'
 import { usePlayer } from '@/core/store/player'
 import { useSettings } from '@/core/store/settings'
@@ -226,7 +226,41 @@ export function PlayerView(): ReactNode {
       onContextMenu={onContextMenu}
     >
       <div className={styles.surface} ref={attach} />
-      <SubtitleLayer />
+      {p.mpvMode === 'off' && <SubtitleLayer />}
+
+      {/* mpv engine: video plays in mpv's own GPU window */}
+      {p.mpvMode === 'playing' && (
+        <div className={styles.mpvPanel}>
+          <div className={styles.mpvBadge}>mpv engine</div>
+          <MonitorPlay size={44} strokeWidth={1.5} />
+          <div className={styles.mpvTitle}>Playing in the mpv engine</div>
+          <div className={styles.mpvDesc}>
+            {p.item?.fileName} is decoding in mpv's dedicated window with full HDR tone-mapping. Transport controls
+            below and mpv's own overlay both work.
+          </div>
+        </div>
+      )}
+
+      {/* mpv missing: setup prompt */}
+      {p.mpvMode === 'needed' && (
+        <div className={styles.mpvPanel}>
+          <Download size={40} strokeWidth={1.5} />
+          <div className={styles.mpvTitle}>This file needs the mpv engine</div>
+          <div className={styles.mpvDesc}>
+            {p.item?.ext.toUpperCase()} files (MKV, AVI, WMV, FLV, TS…) play through mpv — a free, open-source engine
+            that also gives true HDR tone-mapping. Install mpv, then point Lumen at it.
+          </div>
+          <div className={styles.bigStateActions}>
+            <Button variant="primary" icon={<Download size={16} />} onClick={() => window.open('https://mpv.io/installation/', '_blank')}>
+              Get mpv
+            </Button>
+            <Button variant="subtle" icon={<FolderOpen size={16} />} onClick={() => void p.locateMpv()}>
+              Locate mpv.exe…
+            </Button>
+            <Button variant="ghost" onClick={() => p.close()}>Back</Button>
+          </div>
+        </div>
+      )}
 
       {/* top bar */}
       {!mini && (
@@ -280,7 +314,7 @@ export function PlayerView(): ReactNode {
               </div>
             </motion.div>
           )}
-          {p.status === 'error' && (
+          {p.status === 'error' && p.mpvMode === 'off' && (
             <motion.div
               key="error"
               className={styles.bigState}

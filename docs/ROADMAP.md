@@ -32,7 +32,13 @@ Command palette (all commands + files + settings), customizable shortcuts editor
 
 **Acceptance**: every listed feature reachable by mouse *and* keyboard; palette fuzzy-finds everything; subtitle changes render live while playing.
 
-## M4 — Native engine (mpv) 🔜 next
+## M4 — Native engine (mpv) 🟡 in progress
+
+**Shipped (v0.1.4–v0.1.5):** HEVC/H.265 decode enabled in the built-in engine (MP4/MOV) with the HDR pipeline; `MpvEngine` sidecar that detects an installed mpv and plays MKV/AVI/WMV/FLV/TS and true-HDR content via JSON IPC (`--vo=gpu-next` + tone-mapping), with engine auto-selection, an in-app setup/locate flow, and unit-tested protocol/selection/detection logic. See ADR-012/013.
+
+**Remaining:** in-Lumen-window rendering (currently mpv uses its own GPU window), embedded audio/subtitle track switching UI, precise-seek modes, optional bundled mpv, and on-HDR-hardware verification of passthrough.
+
+## M4 (original scope, for reference) 🔜
 
 Bundle libmpv; `MpvEngine` implementing the same interface (child-window render target behind transparent UI); per-file engine selection with fallback; unlocks MKV/AVI/FLV/WMV/MPEG/TS, HEVC 10-bit, HDR passthrough, embedded audio/subtitle track switching, audio delay, precise seek modes. Add codec/pixel-format/HDR fields to stats overlay and info panel.
 

@@ -76,6 +76,8 @@ export interface VideoSettings {
   cap: ResolutionCap
   hdr: HdrMode
   color: ColorAdjust
+  /** User-located mpv.exe path (mpv engine, beta) */
+  mpvPath?: string
 }
 
 export interface Settings {

@@ -201,6 +201,18 @@ export function createMockLumen(): LumenApi {
         save(LS_PLAYLISTS, playlists)
       }
     },
+    mpv: {
+      detect: async () => null,
+      locate: async () => null,
+      play: async () => {},
+      playPause: () => {},
+      seek: () => {},
+      setRate: () => {},
+      setVolume: () => {},
+      setMuted: () => {},
+      stop: () => {},
+      onEvent: () => () => {}
+    },
     shell: {
       showInFolder: () => {},
       saveScreenshot: async (dataUrl, name) => {

@@ -10,6 +10,7 @@
 - **A player UI that gets out of the way** — auto-hiding controls, hover-preview timeline, inline speed/track/subtitle menus, stats overlay.
 - **Themes** — Dark, Light, and OLED Black, with a custom accent system and automatic Windows theme sync. Mica window material on Windows 11.
 - **Video controls** — switch render resolution (e.g. 1440p ↔ 1080p on higher-res files), an HDR/tone toggle, and full color grading (brightness, contrast, saturation, gamma) live during playback.
+- **Broad format support** — H.264, HEVC/H.265, VP9 and AV1 in MP4/MOV/WebM play natively (HDR engages on HDR displays). MKV, AVI, WMV, FLV, TS and true HDR tone-mapping play through the optional **mpv engine** — install [mpv](https://mpv.io/installation/) and point Lumen at it in Settings → Video.
 - **Library** — your Windows Videos folder indexed automatically on first run, background scanning and watching, instant fuzzy search, grid/list views, resolution filters (4K · 1440p · 1080p · 720p · SD), sorting, favorites, tags.
 - **Command palette** (`Ctrl+Shift+P`) and fully customizable keyboard shortcuts.
 - **Subtitle studio** — external SRT/VTT with live-styled rendering: font, size, color, outline, shadow, background, position, delay.

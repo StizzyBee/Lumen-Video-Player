@@ -6,6 +6,7 @@ import type { PlaybackEngine, PlaybackStatus, VideoFit } from '@/core/engine/typ
 import { parseSubtitles, trackLabelFromPath, type SubtitleTrack } from '@/core/subtitles'
 import { positionToSave } from '@/core/resume'
 import { toggleBookmark } from '@/core/bookmarks'
+import { selectEngine } from '@/core/engine/select'
 import { useSettings } from './settings'
 import { useLibrary } from './library'
 import { useUi } from './ui'
@@ -61,12 +62,19 @@ interface PlayerStore {
   screenshot(): Promise<void>
   applyAudioSettings(): void
   engineQuality(): { dropped: number; total: number } | null
+  // ── mpv engine (beta) ──
+  mpvAvailable: boolean
+  /** 'off' = built-in engine, 'playing' = mpv window active, 'needed' = mpv missing */
+  mpvMode: 'off' | 'playing' | 'needed'
+  detectMpv(): Promise<void>
+  locateMpv(): Promise<void>
 }
 
 let engine: PlaybackEngine | null = null
 let host: HTMLElement | null = null
 let unsubs: Array<() => void> = []
 let persistTimer: number | null = null
+let mpvSubscribed = false
 
 function ensureEngine(get: () => PlayerStore, set: (p: Partial<PlayerStore>) => void): PlaybackEngine {
   if (engine) return engine
@@ -152,6 +160,43 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
   statsVisible: false,
   pipActive: false,
   fit: 'contain',
+  mpvAvailable: false,
+  mpvMode: 'off',
+
+  async detectMpv() {
+    const path = await platform.mpv.detect()
+    set({ mpvAvailable: !!path })
+    if (!mpvSubscribed) {
+      mpvSubscribed = true
+      platform.mpv.onEvent((e) => {
+        const s = usePlayer.getState()
+        if (s.mpvMode !== 'playing') return
+        if (e.type === 'exit') {
+          s.close()
+        } else if (e.type === 'prop') {
+          if (e.name === 'time-pos' && typeof e.data === 'number') set({ time: e.data })
+          else if (e.name === 'duration' && typeof e.data === 'number') set({ duration: e.data })
+          else if (e.name === 'pause') set({ status: e.data ? 'paused' : 'playing' })
+          else if (e.name === 'eof-reached' && e.data) set({ status: 'ended' })
+        } else if (e.type === 'ready') {
+          set({ status: 'playing' })
+        } else if (e.type === 'error') {
+          set({ status: 'error', errorKind: 'mpv' })
+        }
+      })
+    }
+  },
+
+  async locateMpv() {
+    const path = await platform.mpv.locate()
+    set({ mpvAvailable: !!path })
+    if (path) {
+      useUi.getState().toast({ kind: 'ok', title: 'mpv engine ready', desc: 'MKV, AVI, HEVC and HDR files will use mpv.' })
+      // retry the current file if we were blocked on it
+      const s = get()
+      if (s.mpvMode === 'needed' && s.item) s.openItem(s.item, { queue: s.queue })
+    }
+  },
 
   attachHost(el) {
     host = el
@@ -162,14 +207,56 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
 
   openItem(item, opts) {
     const settings = useSettings.getState().settings
-    const e = ensureEngine(get, set)
     const queue = opts?.queue ?? get().queue
     const queueIndex = queue.indexOf(item.id)
 
     const startAt =
       !opts?.startOver && settings.playback.rememberPosition && item.positionSec ? item.positionSec : 0
 
+    // Route MKV/AVI/HEVC-in-mkv etc. to the mpv engine when the built-in
+    // Chromium engine can't handle the container.
+    const choice = selectEngine(item.ext, { mpvAvailable: get().mpvAvailable })
+    if (choice !== 'html5') {
+      // tear down any html5 engine first
+      if (engine) {
+        for (const u of unsubs) u()
+        unsubs = []
+        engine.destroy()
+        engine = null
+      }
+      set({
+        item,
+        queue,
+        queueIndex,
+        time: startAt,
+        duration: item.durationSec ?? 0,
+        buffered: [],
+        subTracks: [],
+        activeSubId: null,
+        ab: { a: null, b: null },
+        pipActive: false,
+        dimensions: item.width && item.height ? { width: item.width, height: item.height } : null,
+        status: choice === 'mpv' ? 'loading' : 'error',
+        errorKind: choice === 'mpv' ? null : 'needmpv',
+        mpvMode: choice === 'mpv' ? 'playing' : 'needed'
+      })
+      useUi.getState().navigate({ name: 'player' })
+      if (choice === 'mpv') {
+        void platform.mpv.play(item.path, {
+          hdr: settings.video.hdr,
+          hwdec: settings.playback.hardwareDecoding,
+          volume: settings.audio.muted ? 0 : settings.audio.volume,
+          startAt
+        })
+        platform.app.setPlaying(true)
+        useLibrary.getState().patchItem(item.id, { lastPlayedAt: Date.now(), playCount: item.playCount + 1 })
+      }
+      return
+    }
+
+    const e = ensureEngine(get, set)
     set({
+      mpvMode: 'off',
       item,
       queue,
       queueIndex,
@@ -217,7 +304,8 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
   },
 
   close() {
-    persistPosition(get())
+    if (get().mpvMode === 'playing') platform.mpv.stop()
+    else persistPosition(get())
     if (persistTimer) window.clearInterval(persistTimer)
     persistTimer = null
     for (const u of unsubs) u()
@@ -236,13 +324,20 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
       dimensions: null,
       errorKind: null,
       ab: { a: null, b: null },
-      pipActive: false
+      pipActive: false,
+      mpvMode: 'off'
     })
     useUi.getState().closePlayerView()
   },
 
   togglePlay() {
     const s = get()
+    if (s.mpvMode === 'playing') {
+      const paused = s.status === 'playing'
+      platform.mpv.playPause(paused)
+      set({ status: paused ? 'paused' : 'playing' })
+      return
+    }
     if (!engine) return
     if (s.status === 'playing') engine.pause()
     else if (s.status === 'ended') {
@@ -251,12 +346,19 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
     } else engine.play()
   },
   play() {
+    if (get().mpvMode === 'playing') return platform.mpv.playPause(false)
     engine?.play()
   },
   pause() {
+    if (get().mpvMode === 'playing') return platform.mpv.playPause(true)
     engine?.pause()
   },
   seekTo(sec) {
+    if (get().mpvMode === 'playing') {
+      platform.mpv.seek(sec)
+      set({ time: sec })
+      return
+    }
     engine?.seek(sec)
     set({ time: Math.max(0, Math.min(sec, get().duration || sec)) })
   },
@@ -265,6 +367,11 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
     get().seekTo(s.time + sec)
   },
   setRate(r) {
+    if (get().mpvMode === 'playing') {
+      platform.mpv.setRate(r)
+      set({ rate: r })
+      return
+    }
     engine?.setRate(r)
     set({ rate: r })
   },

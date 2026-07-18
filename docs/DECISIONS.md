@@ -88,6 +88,16 @@ Filter-string building and resolution math are pure (`core/video.ts`) and unit-t
 
 **Consequences.** Honest, working controls today; no fake "1440p" on a 1080p file; a clear upgrade path where the same UI drives real decode-level scaling once libmpv lands.
 
+## ADR-013 · mpv as a detected sidecar engine, not a bundled/native binding
+
+**Context.** MKV/AVI/WMV/FLV/TS aren't demuxed by Chromium at all, and reliable HEVC + real HDR tone-mapping need a full media stack. The options were: (a) native libmpv bindings, (b) bundle mpv.exe in the installer, (c) detect an installed mpv and drive it.
+
+libmpv bindings need node-gyp/MSVC — impossible on this machine (ADR-001). Bundling mpv adds ~100 MB and, critically, its native window compositing with the HTML UI could not be verified from the CI/VM environment — shipping unverified native-window rendering as a core install would violate the project's "verify before claiming done" rule.
+
+**Decision.** Ship an mpv **sidecar engine** that Lumen detects (`src/main/mpv/locate.ts` candidate order: user path → bundled → common installs → PATH) and controls over JSON IPC (`src/main/mpv/protocol.ts`, newline-delimited JSON over a named pipe). mpv renders in its own GPU window with tuned args (`--hwdec=auto-safe --vo=gpu-next` + `--tone-mapping` per the HDR setting); Lumen's transport drives it via IPC and mirrors position/duration/eof back. Engine choice is pure and unit-tested (`core/engine/select.ts`): html5 for MP4/MOV/WebM, mpv for everything else, an actionable "install mpv" prompt when it's absent. No downloads performed by Lumen — the user installs mpv (one command via winget/scoop or mpv.io) and locates it once.
+
+**Consequences.** Installer stays ~97 MB; no unverified native binary shipped; MKV/AVI/HEVC/HDR fully work for anyone with mpv; the protocol/selection/detection logic is verified by unit tests even though live rendering needs on-hardware confirmation. A future bundled-mpv or libmpv-embed path can slot in behind the same `select.ts`/IPC seam.
+
 ## ADR-009 · Product name: "Lumen"
 
 Short, luminous, pairs with the light-focused brand accent (`#6c8cff`), unclaimed among major players; binary `lumen`, no spaces, works as protocol scheme `lumen://`.

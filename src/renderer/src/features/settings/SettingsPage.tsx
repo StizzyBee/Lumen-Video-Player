@@ -354,6 +354,8 @@ export function SettingsPage(): ReactNode {
   const patch = useSettings((st) => st.patch)
   const apply = usePlayer((st) => st.applyAudioSettings)
   const applyVideo = usePlayer((st) => st.applyVideoSettings)
+  const mpvAvailable = usePlayer((st) => st.mpvAvailable)
+  const locateMpv = usePlayer((st) => st.locateMpv)
   const [query, setQuery] = useState('')
   const [fontMenu, setFontMenu] = useState<MenuAnchor | null>(null)
   const [version, setVersion] = useState('')
@@ -493,6 +495,19 @@ export function SettingsPage(): ReactNode {
               </Button>
             </div>
           )}
+          <Row query={q} label="mpv engine (MKV, AVI, HEVC, HDR)" desc={mpvAvailable ? 'Detected — MKV, AVI, WMV, FLV and other formats play through mpv with true HDR tone-mapping.' : 'Not found. Install the free mpv player, then locate it here to unlock MKV/AVI/WMV and full HDR. HEVC in MP4/MOV already plays in the built-in engine.'}>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <span className={styles.sliderValue} style={{ minWidth: 0, color: mpvAvailable ? 'var(--ok)' : 'var(--text-3)' }}>
+                {mpvAvailable ? 'Ready' : 'Not set up'}
+              </span>
+              {!mpvAvailable && (
+                <Button size="sm" variant="subtle" onClick={() => window.open('https://mpv.io/installation/', '_blank')}>Get mpv</Button>
+              )}
+              <Button size="sm" variant={mpvAvailable ? 'ghost' : 'accentSoft'} onClick={() => void locateMpv()}>
+                {mpvAvailable ? 'Change…' : 'Locate mpv.exe…'}
+              </Button>
+            </div>
+          </Row>
         </Section>
 
         <Section id="audio" label="Audio" icon={<AudioLines size={16} />}>
