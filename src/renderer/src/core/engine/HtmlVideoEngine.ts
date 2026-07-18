@@ -5,9 +5,11 @@ import type { ColorAdjust, HdrMode, ResolutionCap } from '@shared/types'
 
 let gammaSeq = 0
 
-// Containers Chromium's demuxer handles. Codec support inside them varies —
-// errors surface as honest messages with the M4 mpv path called out.
-const PLAYABLE = new Set(['mp4', 'm4v', 'webm', 'mov', 'ogv', 'mkv'])
+// Containers Chromium's demuxer actually handles. HEVC/H.265 now decodes
+// inside mp4/mov/m4v (PlatformHEVCDecoderSupport). General Matroska (.mkv),
+// AVI, WMV, FLV, TS etc. are NOT demuxed by Chromium and route to the mpv
+// engine; codec errors inside a supported container surface honest messaging.
+const PLAYABLE = new Set(['mp4', 'm4v', 'webm', 'mov', 'ogv'])
 
 const EQ_FREQS = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
 
@@ -16,7 +18,7 @@ type Handler = (...args: never[]) => void
 export class HtmlVideoEngine implements PlaybackEngine {
   readonly caps: EngineCaps = {
     id: 'html5',
-    name: 'Chromium (hardware accelerated)',
+    name: 'Chromium (H.264 · HEVC · VP9 · AV1)',
     canPlayExt: (ext) => PLAYABLE.has(ext.toLowerCase()),
     pictureInPicture: true,
     audioTrackSwitching: false,

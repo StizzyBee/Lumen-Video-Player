@@ -10,6 +10,12 @@ import { mergeSettings, VIDEO_EXTENSIONS, type Playlist, type Settings } from '@
 
 app.setName('Lumen')
 
+// Codec/HDR enablement (must run before app is ready).
+//  • PlatformHEVCDecoderSupport — H.265/HEVC playback in MP4/MOV via the OS
+//    decoder (hardware where available, Media Foundation software fallback).
+//  • The HDR pipeline engages automatically on HDR-capable displays.
+app.commandLine.appendSwitch('enable-features', 'PlatformHEVCDecoderSupport')
+
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
   app.quit()

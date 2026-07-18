@@ -199,12 +199,12 @@ export function PlayerView(): ReactNode {
 
   const errorCopy: Record<string, { title: string; desc: string }> = {
     unsupported: {
-      title: "This format isn't supported yet",
-      desc: `${p.item?.ext.toUpperCase() ?? 'This'} files need the native playback engine that ships in the next milestone (M4, libmpv). MP4, WebM, and MOV play today.`
+      title: 'This container needs the mpv engine',
+      desc: `${p.item?.ext.toUpperCase() ?? 'This'} files (MKV, AVI, WMV, FLV, TS…) aren't handled by the built-in engine. Install the mpv engine from Settings → Video to play them. MP4, MOV, M4V, WebM — with H.264, HEVC, VP9 and AV1 — play natively.`
     },
     decode: {
-      title: 'Codec not supported',
-      desc: 'The video codec inside this file (possibly HEVC 10-bit or an uncommon profile) can\'t be decoded yet. The M4 native engine will handle it.'
+      title: 'Codec not supported here',
+      desc: "This file's codec couldn't be decoded by the built-in engine. The mpv engine (Settings → Video) decodes it in software, including 10-bit HDR."
     },
     network: { title: 'File unreadable', desc: 'The file could not be read. It may have moved, or the drive is unavailable.' }
   }
