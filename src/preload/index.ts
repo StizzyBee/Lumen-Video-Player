@@ -15,6 +15,7 @@ const api: LumenApi = {
     setFullscreen: (onFs) => ipcRenderer.send('win:set-fullscreen', onFs),
     isMaximized: () => ipcRenderer.invoke('win:is-maximized'),
     setMiniMode: (onMini) => ipcRenderer.send('win:set-mini', onMini),
+    setZoomFactor: (factor) => ipcRenderer.send('win:set-zoom', factor),
     onMaximized: (cb) => on('win:maximized', cb),
     onFullscreen: (cb) => on('win:fullscreen', cb)
   },

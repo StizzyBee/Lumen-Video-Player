@@ -9,7 +9,8 @@
   will-change: transform;
 }
 .iconBtn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
-.iconBtn:active:not(:disabled) { background: var(--bg-active); transform: scale(0.94); }
+/* Gentle press scale — shrinking too far can drop clicks released near the edge */
+.iconBtn:active:not(:disabled) { background: var(--bg-active); transform: scale(0.96); }
 .iconBtn:disabled { opacity: 0.4; cursor: default; }
 
 .md { width: 36px; height: 36px; }

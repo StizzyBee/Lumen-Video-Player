@@ -1,6 +1,9 @@
 .sidebar {
   width: 232px;
-  flex: none;
+  flex: 0 0 auto;
+  /* Without this, the flex item's default min-width:auto floors it at content
+     width, so the collapsed rule below can't actually shrink it to 68px. */
+  min-width: 0;
   display: flex;
   flex-direction: column;
   padding: var(--sp-2) var(--sp-3) var(--sp-3);
@@ -8,13 +11,12 @@
   transition: width 240ms var(--ease-spring);
   overflow: hidden;
 }
-.sidebar.collapsed { width: 68px; }
+.sidebar.collapsed { width: 68px; min-width: 68px; }
 
 .item {
   position: relative;
   display: flex;
   align-items: center;
-  gap: var(--sp-3);
   height: 38px;
   padding: 0 var(--sp-3);
   border-radius: var(--r-md);
@@ -27,8 +29,21 @@
 .item:hover { color: var(--text); background: var(--bg-hover); }
 .item.active { color: var(--accent); }
 .item svg { flex: none; z-index: 1; }
-.item span { z-index: 1; opacity: 1; transition: opacity 160ms var(--ease-out); }
-.collapsed .item span { opacity: 0; }
+/* Labels collapse to zero width (not just zero opacity) so icons stay
+   perfectly centered on the 68px rail instead of being pushed off it */
+.item span {
+  z-index: 1;
+  display: block;
+  max-width: 170px;
+  margin-left: var(--sp-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 1;
+  transition: opacity 140ms var(--ease-out), max-width 240ms var(--ease-spring),
+    margin-left 240ms var(--ease-spring);
+}
+.collapsed .item span { opacity: 0; max-width: 0; margin-left: 0; }
 .collapsed .item { padding: 0; justify-content: center; }
 
 .pill {

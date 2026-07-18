@@ -116,6 +116,7 @@ export function createMockLumen(): LumenApi {
       },
       isMaximized: async () => false,
       setMiniMode: () => {},
+      setZoomFactor: () => {},
       onMaximized: () => () => {},
       onFullscreen: (cb) => {
         const h = (): void => cb(!!document.fullscreenElement)

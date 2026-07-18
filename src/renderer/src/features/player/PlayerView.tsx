@@ -231,8 +231,8 @@ export function PlayerView(): ReactNode {
       {/* top bar */}
       {!mini && (
         <div className={`${styles.topBar} ${styles.chrome}`} data-controls>
-          <IconButton onVideo label="Back" kbd="Esc" onClick={() => p.close()}>
-            <ChevronLeft size={22} />
+          <IconButton onVideo size="lg" label="Back" kbd="Esc" onClick={() => p.close()}>
+            <ChevronLeft size={26} />
           </IconButton>
           <div className={styles.topTitle}>{p.item?.title}</div>
         </div>

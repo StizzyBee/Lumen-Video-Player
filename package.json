@@ -1,7 +1,7 @@
 {
   "name": "lumen-player",
   "productName": "Lumen",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A luminous home for your videos — a modern Windows video player.",
   "main": "out/main/index.js",
   "type": "module",
@@ -53,6 +53,14 @@
         { "ext": "m4v", "name": "Video" }
       ]
     },
-    "nsis": { "oneClick": true, "deleteAppDataOnUninstall": false }
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Lumen",
+      "deleteAppDataOnUninstall": false
+    }
   }
 }

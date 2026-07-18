@@ -114,8 +114,8 @@ export function PlaylistsPage(): ReactNode {
     return (
       <div className={styles.page}>
         <div className={styles.detailHead}>
-          <IconButton label="All playlists" onClick={() => navigate({ name: 'playlists' })}>
-            <ChevronLeft size={20} />
+          <IconButton size="lg" label="All playlists" onClick={() => navigate({ name: 'playlists' })}>
+            <ChevronLeft size={24} />
           </IconButton>
           <h1 className={styles.title}>{active.name}</h1>
           <span style={{ color: 'var(--text-3)', fontSize: 'var(--fs-caption)', fontWeight: 600 }}>

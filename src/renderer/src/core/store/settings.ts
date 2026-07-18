@@ -36,7 +36,13 @@ function applyToDom(s: Settings, resolved: 'dark' | 'light' | 'oled'): void {
   root.dataset.theme = resolved
   root.style.setProperty('--accent', s.theme.accent)
   root.style.setProperty('--on-accent', onAccentColor(s.theme.accent))
-  root.style.setProperty('--ui-scale', String(s.ui.scale))
+  if (isDesktop) {
+    // Native zoom keeps pointer hit-testing exact at any scale; CSS zoom does not.
+    platform.win.setZoomFactor(s.ui.scale)
+    root.style.setProperty('--ui-scale', '1')
+  } else {
+    root.style.setProperty('--ui-scale', String(s.ui.scale))
+  }
   root.dataset.reducedMotion = s.ui.reducedMotion ? 'true' : 'false'
   const useMaterial = isDesktop && s.theme.material !== 'solid' && resolved !== 'oled'
   if (useMaterial) root.dataset.material = s.theme.material

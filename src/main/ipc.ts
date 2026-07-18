@@ -32,6 +32,11 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.on('win:set-fullscreen', (_e, on: boolean) => win().setFullScreen(!!on))
   ipcMain.handle('win:is-maximized', () => win().isMaximized())
   ipcMain.on('win:set-mini', (_e, on: boolean) => setMiniMode(win(), !!on))
+  ipcMain.on('win:set-zoom', (_e, factor: number) => {
+    if (typeof factor === 'number' && Number.isFinite(factor)) {
+      win().webContents.setZoomFactor(Math.min(2, Math.max(0.5, factor)))
+    }
+  })
 
   // ── library ───────────────────────────────────────────────────────────────
   ipcMain.handle('library:get', () => library.state)

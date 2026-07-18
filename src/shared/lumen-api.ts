@@ -28,6 +28,8 @@ export interface LumenApi {
     setFullscreen(on: boolean): void
     isMaximized(): Promise<boolean>
     setMiniMode(on: boolean): void
+    /** Native page zoom — correct input hit-testing at any UI scale */
+    setZoomFactor(factor: number): void
     onMaximized(cb: (maximized: boolean) => void): Unsubscribe
     onFullscreen(cb: (fullscreen: boolean) => void): Unsubscribe
   }
