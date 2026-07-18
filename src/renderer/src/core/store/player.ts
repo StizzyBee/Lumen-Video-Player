@@ -5,6 +5,7 @@ import { HtmlVideoEngine } from '@/core/engine/HtmlVideoEngine'
 import type { PlaybackEngine, PlaybackStatus, VideoFit } from '@/core/engine/types'
 import { parseSubtitles, trackLabelFromPath, type SubtitleTrack } from '@/core/subtitles'
 import { positionToSave } from '@/core/resume'
+import { toggleBookmark } from '@/core/bookmarks'
 import { useSettings } from './settings'
 import { useLibrary } from './library'
 import { useUi } from './ui'
@@ -54,6 +55,7 @@ interface PlayerStore {
   toggleStats(): void
   togglePip(): void
   setFit(fit: VideoFit): void
+  toggleBookmarkHere(): void
   screenshot(): Promise<void>
   applyAudioSettings(): void
   engineQuality(): { dropped: number; total: number } | null
@@ -366,6 +368,18 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
   setFit(fit) {
     engine?.setFit(fit)
     set({ fit })
+  },
+
+  toggleBookmarkHere() {
+    const { item, time } = get()
+    if (!item) return
+    const live = useLibrary.getState().byId.get(item.id)
+    const { list, added } = toggleBookmark(live?.bookmarks, time)
+    useLibrary.getState().patchItem(item.id, { bookmarks: list })
+    useUi.getState().toast(
+      { kind: added ? 'ok' : 'info', title: added ? 'Bookmark added' : 'Bookmark removed' },
+      1500
+    )
   },
 
   async screenshot() {

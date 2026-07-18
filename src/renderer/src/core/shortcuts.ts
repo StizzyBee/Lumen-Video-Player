@@ -28,6 +28,7 @@ export const DEFAULT_KEYMAP: Record<string, string> = {
   'playback.previous': 'P',
   'playback.loop': 'R',
   'playback.abRepeat': 'Shift+R',
+  'playback.bookmark': 'B',
   'playback.stats': 'I',
   'playback.screenshot': 'Ctrl+Shift+S',
   'playback.pip': 'Alt+P',

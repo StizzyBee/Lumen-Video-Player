@@ -24,6 +24,8 @@ export interface LibraryItem {
   lastPlayedAt?: number
   positionSec?: number
   playCount: number
+  /** Timeline bookmarks, seconds offsets, sorted ascending */
+  bookmarks?: number[]
   /** Sidecar subtitle files discovered next to the video */
   subtitles: string[]
 }

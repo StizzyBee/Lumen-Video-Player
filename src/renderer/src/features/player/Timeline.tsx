@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { usePlayer } from '@/core/store/player'
+import { useLibrary } from '@/core/store/library'
 import { platform } from '@/core/platform'
 import { setVideoSource } from '@/core/media'
 import { Slider } from '@/components/ui/Slider'
@@ -13,6 +14,7 @@ export function Timeline(): ReactNode {
   const buffered = usePlayer((s) => s.buffered)
   const ab = usePlayer((s) => s.ab)
   const item = usePlayer((s) => s.item)
+  const bookmarks = useLibrary((s) => (item ? s.byId.get(item.id)?.bookmarks : undefined))
   const seekTo = usePlayer((s) => s.seekTo)
   const [scrubbing, setScrubbing] = useState(false)
   const [scrubValue, setScrubValue] = useState(0)
@@ -138,6 +140,10 @@ export function Timeline(): ReactNode {
             )}
             {ab.a !== null && <div className={styles.abMarker} style={{ left: `${(ab.a / dur) * 100}%` }} />}
             {ab.b !== null && <div className={styles.abMarker} style={{ left: `${(ab.b / dur) * 100}%` }} />}
+            {duration > 0 &&
+              bookmarks?.map((b) => (
+                <div key={b} className={styles.bookmark} style={{ left: `${(b / dur) * 100}%` }} />
+              ))}
           </>
         }
       />

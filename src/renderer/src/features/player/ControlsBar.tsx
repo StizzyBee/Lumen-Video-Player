@@ -2,9 +2,10 @@ import { useRef, useState, type ReactNode } from 'react'
 import {
   Play, Pause, SkipBack, SkipForward, Volume2, Volume1, VolumeX, Maximize, Minimize,
   Captions, Repeat, Repeat1, PictureInPicture2, GalleryVerticalEnd, MoreHorizontal,
-  Camera, Activity, AudioLines, ListVideo, PanelRightClose, FilePlus2, RotateCcw, RotateCw
+  Camera, Activity, AudioLines, ListVideo, PanelRightClose, FilePlus2, RotateCcw, RotateCw, Bookmark
 } from 'lucide-react'
 import { usePlayer } from '@/core/store/player'
+import { useLibrary } from '@/core/store/library'
 import { useSettings } from '@/core/store/settings'
 import { useUi } from '@/core/store/ui'
 import { IconButton } from '@/components/ui/IconButton'
@@ -17,6 +18,7 @@ import { formatTime, formatRate } from '@/core/utils/format'
 import styles from './ControlsBar.module.css'
 
 const SPEED_PRESETS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3]
+const NO_BOOKMARKS: number[] = []
 
 type OpenMenu = 'subs' | 'speed' | 'audio' | 'more' | null
 
@@ -44,6 +46,8 @@ export function ControlsBar({ onMenuOpenChange }: { onMenuOpenChange: (open: boo
     onMenuOpenChange(false)
   }
 
+  const bookmarksRaw = useLibrary((s) => (p.item ? s.byId.get(p.item.id)?.bookmarks : undefined))
+  const bookmarks = bookmarksRaw ?? NO_BOOKMARKS
   const playing = p.status === 'playing' || p.status === 'buffering'
   const audio = settings.audio
   const VolumeIcon = audio.muted || audio.volume === 0 ? VolumeX : audio.volume < 0.5 ? Volume1 : Volume2
@@ -133,6 +137,18 @@ export function ControlsBar({ onMenuOpenChange }: { onMenuOpenChange: (open: boo
     { id: 'shot', label: 'Save screenshot', icon: <Camera size={16} />, hint: 'Ctrl+Shift+S', onSelect: () => void p.screenshot() },
     { id: 'stats', label: p.statsVisible ? 'Hide stats' : 'Show stats', icon: <Activity size={16} />, hint: 'I', onSelect: () => p.toggleStats() },
     { id: 'ab', label: p.ab.a === null ? 'Set A point' : p.ab.b === null ? 'Set B point' : 'Clear A–B repeat', hint: 'Shift+R', onSelect: () => p.setAbPoint() },
+    { id: 'bookmark', label: 'Bookmark this moment', icon: <Bookmark size={16} />, hint: 'B', onSelect: () => p.toggleBookmarkHere() },
+    ...(bookmarks.length
+      ? [
+          { type: 'header', label: `Bookmarks · ${bookmarks.length}` } as const,
+          ...bookmarks.map((b) => ({
+            id: `bm-${b}`,
+            label: `Jump to ${formatTime(b)}`,
+            icon: <Bookmark size={16} />,
+            onSelect: () => p.seekTo(b)
+          }))
+        ]
+      : []),
     { type: 'separator' },
     { type: 'header', label: 'Video size' },
     ...([

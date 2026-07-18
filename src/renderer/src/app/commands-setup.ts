@@ -60,6 +60,7 @@ export function setupCommands(): void {
     { id: 'playback.previous', title: 'Previous / restart', category: 'Playback', when: inPlayer, run: () => player().previous() },
     { id: 'playback.loop', title: 'Cycle loop mode', category: 'Playback', when: inPlayer, run: () => player().cycleLoop() },
     { id: 'playback.abRepeat', title: 'A–B repeat: set point', category: 'Playback', when: inPlayer, run: () => player().setAbPoint() },
+    { id: 'playback.bookmark', title: 'Add / remove bookmark here', category: 'Playback', when: inPlayer, run: () => player().toggleBookmarkHere() },
     { id: 'playback.stats', title: 'Toggle playback stats', category: 'Playback', when: inPlayer, run: () => player().toggleStats() },
     { id: 'playback.screenshot', title: 'Save screenshot', category: 'Playback', when: inPlayer, run: () => void player().screenshot() },
     { id: 'playback.pip', title: 'Picture in picture', category: 'Playback', when: inPlayer, run: () => player().togglePip() },
