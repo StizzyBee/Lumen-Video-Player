@@ -1,0 +1,85 @@
+.bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-player-chrome);
+  padding: 56px var(--sp-5) var(--sp-3);
+  background: var(--scrim-bottom);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: #fff;
+}
+.spacer { flex: 1; }
+
+.time {
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.85);
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-sm);
+  transition: background var(--t-fast);
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+}
+.time:hover { background: rgba(255, 255, 255, 0.12); }
+.timeDim { color: rgba(255, 255, 255, 0.5); font-weight: 500; }
+
+.volumeGroup {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.volumeSlider {
+  width: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: width 200ms var(--ease-spring), opacity 160ms var(--ease-out);
+  color: rgba(255, 255, 255, 0.9);
+}
+.volumeGroup:hover .volumeSlider,
+.volumeSlider:focus-within,
+.volumeSlider.pinned { width: 92px; opacity: 1; margin-right: var(--sp-2); }
+
+.speedLabel {
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  min-width: 40px;
+  height: 36px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-md);
+  color: rgba(255, 255, 255, 0.88);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.speedLabel:hover { background: rgba(255, 255, 255, 0.14); color: #fff; }
+.speedActive { color: var(--accent); }
+
+.customSpeed {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.customSpeed input[type='number'] {
+  width: 90px;
+  height: 36px;
+  background: var(--bg-input);
+  border: none;
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px var(--stroke-strong);
+  padding: 0 var(--sp-3);
+  font-size: var(--fs-body);
+  font-weight: 600;
+}

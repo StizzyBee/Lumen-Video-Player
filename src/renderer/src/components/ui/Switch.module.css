@@ -1,0 +1,28 @@
+.switch {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  border-radius: var(--r-full);
+  background: var(--bg-active);
+  box-shadow: inset 0 0 0 1px var(--stroke-strong);
+  transition: background var(--t-med), box-shadow var(--t-med);
+  flex: none;
+}
+.switch[aria-checked='true'] {
+  background: var(--accent);
+  box-shadow: inset 0 0 0 1px transparent;
+}
+.thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  transition: transform var(--t-med), width var(--t-fast);
+}
+.switch[aria-checked='true'] .thumb { transform: translateX(18px); }
+.switch:active .thumb { width: 20px; }
+.switch[aria-checked='true']:active .thumb { transform: translateX(14px); }

@@ -1,0 +1,45 @@
+.root {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 24px;
+  cursor: pointer;
+  touch-action: none;
+  --track-h: 4px;
+  --thumb: 12px;
+}
+.root:hover, .root.dragging { --track-h: 6px; }
+
+.track {
+  position: relative;
+  width: 100%;
+  height: var(--track-h);
+  border-radius: var(--r-full);
+  background: color-mix(in srgb, currentColor 18%, transparent);
+  overflow: visible;
+  transition: height var(--t-fast);
+}
+.fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: var(--accent);
+}
+.thumb {
+  position: absolute;
+  top: 50%;
+  width: var(--thumb);
+  height: var(--thumb);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.08);
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform var(--t-fast);
+  pointer-events: none;
+}
+.root:hover .thumb, .root.dragging .thumb, .root:focus-visible .thumb {
+  transform: translate(-50%, -50%) scale(1);
+}
+.root.dragging .thumb { transform: translate(-50%, -50%) scale(1.15); }
+.root:focus-visible { outline: none; }
+.root:focus-visible .track { box-shadow: 0 0 0 2px var(--bg0), 0 0 0 4px var(--accent); }

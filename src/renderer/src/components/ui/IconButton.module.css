@@ -1,0 +1,38 @@
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-md);
+  color: var(--text-2);
+  position: relative;
+  transition: background var(--t-fast), color var(--t-fast), transform var(--t-fast);
+  will-change: transform;
+}
+.iconBtn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
+.iconBtn:active:not(:disabled) { background: var(--bg-active); transform: scale(0.94); }
+.iconBtn:disabled { opacity: 0.4; cursor: default; }
+
+.md { width: 36px; height: 36px; }
+.sm { width: 30px; height: 30px; border-radius: var(--r-sm); }
+.lg { width: 44px; height: 44px; }
+
+.active { color: var(--accent); background: var(--accent-soft); }
+.active:hover:not(:disabled) { color: var(--accent); background: var(--accent-soft-2); }
+
+/* On-video variant: white icons over scrims, no background until hover */
+.onVideo { color: rgba(255, 255, 255, 0.88); }
+.onVideo:hover:not(:disabled) { background: rgba(255, 255, 255, 0.14); color: #fff; }
+.onVideo:active:not(:disabled) { background: rgba(255, 255, 255, 0.2); }
+.onVideo.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 22%, transparent); }
+
+/* Small accent dot for "something is on" states (e.g. speed ≠ 1) */
+.dot::after {
+  content: '';
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  width: 5px;
+  height: 5px;
+  border-radius: 99px;
+  background: var(--accent);
+}

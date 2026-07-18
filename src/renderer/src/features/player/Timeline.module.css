@@ -1,0 +1,64 @@
+.wrap { position: relative; }
+
+.timeline {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.buffered {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.28);
+  border-radius: var(--r-full);
+}
+
+.abMarker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent-glow);
+  z-index: 2;
+}
+.abRange {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--accent-soft-2);
+  border-radius: var(--r-full);
+}
+
+.preview {
+  position: absolute;
+  bottom: calc(100% + 14px);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  z-index: 3;
+}
+.previewThumb {
+  width: 168px;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--r-md);
+  background: #000;
+  box-shadow: var(--shadow-2), 0 0 0 1px rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+  display: block;
+}
+.previewThumb canvas { width: 100%; height: 100%; display: block; }
+.previewTime {
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  padding: 3px 8px;
+  border-radius: var(--r-sm);
+}

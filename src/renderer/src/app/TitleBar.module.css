@@ -1,0 +1,69 @@
+.bar {
+  height: 42px;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding-left: var(--sp-4);
+  -webkit-app-region: drag;
+  position: relative;
+  z-index: var(--z-titlebar);
+  flex: none;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.2px;
+  color: var(--text-2);
+  min-width: 180px;
+}
+.brand svg { flex: none; }
+
+.searchWrap {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+.searchPill {
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: min(420px, 100%);
+  height: 30px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--bg-input);
+  box-shadow: inset 0 0 0 1px var(--stroke);
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+  transition: background var(--t-fast), box-shadow var(--t-fast), color var(--t-fast);
+}
+.searchPill:hover {
+  background: var(--bg-hover);
+  color: var(--text-2);
+  box-shadow: inset 0 0 0 1px var(--stroke-strong);
+}
+.searchPill .grow { flex: 1; text-align: left; }
+
+.caption {
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-self: stretch;
+  margin-left: auto;
+}
+.captionBtn {
+  width: 46px;
+  display: grid;
+  place-items: center;
+  color: var(--text-2);
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.captionBtn:hover { background: var(--bg-hover); color: var(--text); }
+.captionBtn:active { background: var(--bg-active); }
+.captionClose:hover { background: #e81123; color: #fff; }
+.captionClose:active { background: #c50f1f; color: #fff; }

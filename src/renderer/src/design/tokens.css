@@ -1,0 +1,129 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Lumen design tokens — the single source of visual truth.
+   Components never hardcode colors, radii, spacing, or timing.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Spacing (4px scale) ── */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-7: 32px; --sp-8: 48px;
+
+  /* ── Shape ── */
+  --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-xl: 20px; --r-full: 999px;
+
+  /* ── Type ── */
+  --font-ui: 'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Segoe UI Variable Display', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  --fs-display: 28px; --fs-title: 20px; --fs-subtitle: 16px;
+  --fs-body: 14px; --fs-caption: 12px; --fs-micro: 11px;
+
+  /* ── Motion ── */
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --t-fast: 120ms var(--ease-out);
+  --t-med: 200ms var(--ease-out);
+  --t-slow: 320ms var(--ease-spring);
+
+  /* ── Z layers ── */
+  --z-titlebar: 40; --z-player-chrome: 30; --z-popover: 60;
+  --z-dialog: 70; --z-palette: 80; --z-toast: 90; --z-drop: 100;
+
+  /* ── Accent (overridden at runtime by the theme engine) ── */
+  --accent: #6c8cff;
+  --on-accent: #ffffff;
+  --accent-hover: color-mix(in oklab, var(--accent) 88%, white);
+  --accent-active: color-mix(in oklab, var(--accent) 82%, black);
+  --accent-soft: color-mix(in oklab, var(--accent) 16%, transparent);
+  --accent-soft-2: color-mix(in oklab, var(--accent) 28%, transparent);
+  --accent-glow: color-mix(in oklab, var(--accent) 55%, transparent);
+
+  /* ── Semantic ── */
+  --ok: #3fb970; --warn: #f5a623; --danger: #f0525f;
+  --danger-hover: color-mix(in oklab, var(--danger) 86%, white);
+
+  /* ── UI scale (settings) ── */
+  --ui-scale: 1;
+
+  /* ── Player scrims ── */
+  --scrim-bottom: linear-gradient(to top, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.38) 42%, transparent);
+  --scrim-top: linear-gradient(to bottom, rgba(0, 0, 0, 0.55), transparent);
+}
+
+/* ═══ Dark (default) ═══ */
+:root, [data-theme='dark'] {
+  color-scheme: dark;
+  --bg0: #0f0f13;            /* app background        */
+  --bg1: #16161c;            /* raised surface        */
+  --bg2: #1d1d25;            /* overlay surface       */
+  --bg3: #262630;            /* hover on overlay      */
+  --bg-input: rgba(255, 255, 255, 0.045);
+  --bg-hover: rgba(255, 255, 255, 0.055);
+  --bg-active: rgba(255, 255, 255, 0.09);
+  --stroke: rgba(255, 255, 255, 0.07);
+  --stroke-strong: rgba(255, 255, 255, 0.13);
+  --text: #f4f4f7;
+  --text-2: rgba(235, 235, 245, 0.62);
+  --text-3: rgba(235, 235, 245, 0.38);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.22);
+  --shadow-2: 0 2px 6px rgba(0, 0, 0, 0.3), 0 10px 28px rgba(0, 0, 0, 0.36);
+  --shadow-3: 0 6px 16px rgba(0, 0, 0, 0.38), 0 24px 64px rgba(0, 0, 0, 0.5);
+  --acrylic: rgba(29, 29, 37, 0.72);
+  --thumb-placeholder: linear-gradient(135deg, #1c1c26, #14141b);
+}
+
+/* ═══ Light ═══ */
+[data-theme='light'] {
+  color-scheme: light;
+  --bg0: #f2f2f6;
+  --bg1: #ffffff;
+  --bg2: #ffffff;
+  --bg3: #f2f2f7;
+  --bg-input: rgba(20, 20, 40, 0.045);
+  --bg-hover: rgba(20, 20, 40, 0.05);
+  --bg-active: rgba(20, 20, 40, 0.085);
+  --stroke: rgba(20, 20, 40, 0.09);
+  --stroke-strong: rgba(20, 20, 40, 0.16);
+  --text: #1a1a22;
+  --text-2: rgba(28, 28, 40, 0.62);
+  --text-3: rgba(28, 28, 40, 0.4);
+  --shadow-1: 0 1px 2px rgba(16, 16, 32, 0.07), 0 2px 8px rgba(16, 16, 32, 0.06);
+  --shadow-2: 0 2px 6px rgba(16, 16, 32, 0.08), 0 10px 28px rgba(16, 16, 32, 0.1);
+  --shadow-3: 0 6px 16px rgba(16, 16, 32, 0.1), 0 24px 64px rgba(16, 16, 32, 0.16);
+  --acrylic: rgba(252, 252, 255, 0.78);
+  --thumb-placeholder: linear-gradient(135deg, #e8e8f0, #dcdce6);
+}
+
+/* ═══ OLED Black ═══ */
+[data-theme='oled'] {
+  color-scheme: dark;
+  --bg0: #000000;
+  --bg1: #0a0a0e;
+  --bg2: #121218;
+  --bg3: #1b1b23;
+  --bg-input: rgba(255, 255, 255, 0.05);
+  --bg-hover: rgba(255, 255, 255, 0.06);
+  --bg-active: rgba(255, 255, 255, 0.1);
+  --stroke: rgba(255, 255, 255, 0.09);
+  --stroke-strong: rgba(255, 255, 255, 0.16);
+  --text: #f6f6f9;
+  --text-2: rgba(240, 240, 250, 0.6);
+  --text-3: rgba(240, 240, 250, 0.36);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.45);
+  --shadow-2: 0 2px 6px rgba(0, 0, 0, 0.55), 0 10px 28px rgba(0, 0, 0, 0.6);
+  --shadow-3: 0 6px 16px rgba(0, 0, 0, 0.6), 0 24px 64px rgba(0, 0, 0, 0.75);
+  --acrylic: rgba(10, 10, 14, 0.8);
+  --thumb-placeholder: linear-gradient(135deg, #15151d, #0a0a10);
+}
+
+/* ═══ Window material (Mica/Acrylic): let the OS backdrop show through ═══ */
+html[data-material='mica'], html[data-material='acrylic'] {
+  --bg0: transparent;
+}
+html[data-material='mica'] body, html[data-material='acrylic'] body {
+  background: transparent;
+}
+
+/* High Contrast (Windows forced colors): let the system take over */
+@media (forced-colors: active) {
+  :root { --accent: Highlight; --on-accent: HighlightText; }
+}

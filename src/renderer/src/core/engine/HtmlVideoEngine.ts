@@ -1,0 +1,315 @@
+import type { EngineCaps, EngineEvents, PlaybackEngine, PlaybackStatus, VideoFit } from './types'
+import { setVideoSource } from '@/core/media'
+
+// Containers Chromium's demuxer handles. Codec support inside them varies —
+// errors surface as honest messages with the M4 mpv path called out.
+const PLAYABLE = new Set(['mp4', 'm4v', 'webm', 'mov', 'ogv', 'mkv'])
+
+const EQ_FREQS = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
+
+type Handler = (...args: never[]) => void
+
+export class HtmlVideoEngine implements PlaybackEngine {
+  readonly caps: EngineCaps = {
+    id: 'html5',
+    name: 'Chromium (hardware accelerated)',
+    canPlayExt: (ext) => PLAYABLE.has(ext.toLowerCase()),
+    pictureInPicture: true,
+    audioTrackSwitching: false,
+    preciseFrameStep: false
+  }
+
+  private video: HTMLVideoElement
+  private listeners = new Map<keyof EngineEvents, Set<Handler>>()
+  private ctx: AudioContext | null = null
+  private gain: GainNode | null = null
+  private compressor: DynamicsCompressorNode | null = null
+  private eqNodes: BiquadFilterNode[] = []
+  private normalizeOn = false
+  private eqOn = false
+  private boost = 1
+  private status: PlaybackStatus = 'idle'
+  private rafId = 0
+  /** Streaming files (MediaRecorder WebMs, partial recordings) report
+   *  duration=Infinity until we force resolution by seeking far past the end. */
+  private resolvingDuration = false
+  private pendingStart = 0
+
+  constructor() {
+    const v = document.createElement('video')
+    v.playsInline = true
+    v.preload = 'auto'
+    v.style.cssText = 'width:100%;height:100%;object-fit:contain;background:transparent;display:block;'
+    this.video = v
+    this.wireEvents()
+  }
+
+  private emit<E extends keyof EngineEvents>(event: E, ...args: Parameters<EngineEvents[E]>): void {
+    const set = this.listeners.get(event)
+    if (set) for (const fn of set) (fn as (...a: unknown[]) => void)(...args)
+  }
+
+  on<E extends keyof EngineEvents>(event: E, fn: EngineEvents[E]): () => void {
+    let set = this.listeners.get(event)
+    if (!set) {
+      set = new Set()
+      this.listeners.set(event, set)
+    }
+    set.add(fn as Handler)
+    return () => set.delete(fn as Handler)
+  }
+
+  private setStatus(s: PlaybackStatus): void {
+    if (this.status !== s) {
+      this.status = s
+      this.emit('status', s)
+    }
+  }
+
+  private wireEvents(): void {
+    const v = this.video
+    v.addEventListener('loadedmetadata', () => {
+      if (!Number.isFinite(v.duration)) {
+        this.resolvingDuration = true
+        v.currentTime = 1e10
+      } else if (this.pendingStart > 0 && this.pendingStart < v.duration - 2) {
+        v.currentTime = this.pendingStart
+        this.pendingStart = 0
+      }
+    })
+    v.addEventListener('durationchange', () => {
+      if (!Number.isFinite(v.duration)) return
+      if (this.resolvingDuration) {
+        this.resolvingDuration = false
+        const start = this.pendingStart > 0 && this.pendingStart < v.duration - 2 ? this.pendingStart : 0
+        this.pendingStart = 0
+        v.currentTime = start
+      }
+      this.emit('duration', v.duration || 0)
+    })
+    v.addEventListener('playing', () => {
+      this.setStatus('playing')
+      this.startTimeLoop()
+    })
+    v.addEventListener('pause', () => {
+      if (this.status !== 'ended') this.setStatus('paused')
+      this.stopTimeLoop()
+      this.emit('time', v.currentTime)
+    })
+    v.addEventListener('waiting', () => this.setStatus('buffering'))
+    v.addEventListener('canplay', () => {
+      if (this.status === 'buffering' || this.status === 'loading') {
+        this.setStatus(v.paused ? 'paused' : 'playing')
+      }
+    })
+    v.addEventListener('ended', () => {
+      this.setStatus('ended')
+      this.emit('ended')
+    })
+    v.addEventListener('ratechange', () => this.emit('rate', v.playbackRate))
+    v.addEventListener('progress', () => this.emitBuffered())
+    v.addEventListener('seeking', () => this.emit('time', v.currentTime))
+    v.addEventListener('seeked', () => this.emit('time', v.currentTime))
+    v.addEventListener('resize', () => {
+      if (v.videoWidth) this.emit('dimensions', { width: v.videoWidth, height: v.videoHeight })
+    })
+    v.addEventListener('loadedmetadata', () => {
+      if (v.videoWidth) this.emit('dimensions', { width: v.videoWidth, height: v.videoHeight })
+    })
+    v.addEventListener('error', () => {
+      const err = v.error
+      let msg = 'This file could not be played.'
+      if (err?.code === MediaError.MEDIA_ERR_DECODE) msg = 'decode'
+      else if (err?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) msg = 'unsupported'
+      else if (err?.code === MediaError.MEDIA_ERR_NETWORK) msg = 'network'
+      this.setStatus('error')
+      this.emit('error', msg)
+    })
+    v.addEventListener('enterpictureinpicture', () => this.emit('pip', true))
+    v.addEventListener('leavepictureinpicture', () => this.emit('pip', false))
+  }
+
+  private startTimeLoop(): void {
+    cancelAnimationFrame(this.rafId)
+    const tick = (): void => {
+      this.emit('time', this.video.currentTime)
+      this.rafId = requestAnimationFrame(tick)
+    }
+    this.rafId = requestAnimationFrame(tick)
+  }
+  private stopTimeLoop(): void {
+    cancelAnimationFrame(this.rafId)
+  }
+
+  private emitBuffered(): void {
+    const b = this.video.buffered
+    const ranges: Array<[number, number]> = []
+    for (let i = 0; i < b.length; i++) ranges.push([b.start(i), b.end(i)])
+    this.emit('buffered', ranges)
+  }
+
+  attach(host: HTMLElement): void {
+    host.appendChild(this.video)
+  }
+
+  private ensureAudioGraph(): void {
+    if (this.ctx) return
+    try {
+      const ctx = new AudioContext({ latencyHint: 'playback' })
+      const src = ctx.createMediaElementSource(this.video)
+      const gain = ctx.createGain()
+      const comp = ctx.createDynamicsCompressor()
+      comp.threshold.value = -28
+      comp.knee.value = 24
+      comp.ratio.value = 6
+      comp.attack.value = 0.004
+      comp.release.value = 0.24
+      this.eqNodes = EQ_FREQS.map((f, i) => {
+        const n = ctx.createBiquadFilter()
+        n.type = i === 0 ? 'lowshelf' : i === EQ_FREQS.length - 1 ? 'highshelf' : 'peaking'
+        n.frequency.value = f
+        n.Q.value = 1.1
+        n.gain.value = 0
+        return n
+      })
+      this.ctx = ctx
+      this.gain = gain
+      this.compressor = comp
+      src.connect(gain)
+      this.rewireGraph()
+    } catch {
+      // Audio graph is an enhancement — element playback continues without it
+      this.ctx = null
+    }
+  }
+
+  private rewireGraph(): void {
+    const ctx = this.ctx
+    const gain = this.gain
+    if (!ctx || !gain) return
+    gain.disconnect()
+    for (const n of this.eqNodes) n.disconnect()
+    this.compressor?.disconnect()
+
+    let node: AudioNode = gain
+    if (this.eqOn) {
+      for (const n of this.eqNodes) {
+        node.connect(n)
+        node = n
+      }
+    }
+    if (this.normalizeOn && this.compressor) {
+      node.connect(this.compressor)
+      node = this.compressor
+    }
+    node.connect(ctx.destination)
+  }
+
+  async load(src: string, opts?: { startAt?: number; autoplay?: boolean }): Promise<void> {
+    const v = this.video
+    this.setStatus('loading')
+    this.resolvingDuration = false
+    this.pendingStart = opts?.startAt ?? 0
+    setVideoSource(v, src)
+    v.load()
+    if (opts?.autoplay !== false) {
+      try {
+        this.ensureAudioGraph()
+        void this.ctx?.resume()
+        await v.play()
+      } catch {
+        // Autoplay rejected (browser preview without gesture) — stay paused
+        this.setStatus('paused')
+      }
+    }
+  }
+
+  play(): void {
+    this.ensureAudioGraph()
+    void this.ctx?.resume()
+    void this.video.play().catch(() => this.setStatus('paused'))
+  }
+  pause(): void {
+    this.video.pause()
+  }
+  seek(seconds: number): void {
+    const v = this.video
+    const d = Number.isFinite(v.duration) ? v.duration : Infinity
+    v.currentTime = Math.max(0, Math.min(seconds, d - 0.05))
+    if (this.status === 'ended' && v.currentTime < d - 0.5) this.setStatus('paused')
+  }
+  setRate(rate: number): void {
+    this.video.playbackRate = Math.max(0.1, Math.min(8, rate))
+  }
+  setVolume(vol: number): void {
+    this.video.volume = Math.max(0, Math.min(1, vol))
+  }
+  setMuted(m: boolean): void {
+    this.video.muted = m
+  }
+  setBoost(b: number): void {
+    this.boost = Math.max(1, Math.min(3, b))
+    this.ensureAudioGraph()
+    if (this.gain) this.gain.gain.value = this.boost
+  }
+  setNormalize(on: boolean): void {
+    this.normalizeOn = on
+    this.ensureAudioGraph()
+    this.rewireGraph()
+  }
+  setEq(bandsDb: number[], enabled: boolean): void {
+    this.eqOn = enabled && bandsDb.some((b) => b !== 0)
+    this.ensureAudioGraph()
+    this.eqNodes.forEach((n, i) => {
+      n.gain.value = Math.max(-12, Math.min(12, bandsDb[i] ?? 0))
+    })
+    this.rewireGraph()
+  }
+  setFit(fit: VideoFit): void {
+    this.video.style.objectFit = fit
+  }
+  frameStep(dir: 1 | -1): void {
+    this.video.pause()
+    // Chromium has no frame API on <video>; ~1/30s is right for most content.
+    this.seek(this.video.currentTime + dir / 30)
+  }
+  async captureFrame(): Promise<string | null> {
+    const v = this.video
+    if (!v.videoWidth) return null
+    const canvas = document.createElement('canvas')
+    canvas.width = v.videoWidth
+    canvas.height = v.videoHeight
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    try {
+      ctx.drawImage(v, 0, 0)
+      return canvas.toDataURL('image/png')
+    } catch {
+      return null // cross-origin frame (browser mock samples)
+    }
+  }
+  async requestPip(): Promise<void> {
+    if (document.pictureInPictureElement === this.video) {
+      await document.exitPictureInPicture()
+    } else {
+      await this.video.requestPictureInPicture()
+    }
+  }
+  currentTime(): number {
+    return this.video.currentTime
+  }
+  quality(): { dropped: number; total: number } | null {
+    const q = this.video.getVideoPlaybackQuality?.()
+    return q ? { dropped: q.droppedVideoFrames, total: q.totalVideoFrames } : null
+  }
+  destroy(): void {
+    this.stopTimeLoop()
+    this.video.pause()
+    this.video.removeAttribute('src')
+    this.video.load()
+    this.video.remove()
+    void this.ctx?.close().catch(() => {})
+    this.ctx = null
+    this.listeners.clear()
+  }
+}

@@ -1,0 +1,42 @@
+.drop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-drop);
+  background: color-mix(in srgb, var(--bg0) 60%, transparent);
+  backdrop-filter: blur(10px);
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.dropCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-8);
+  border-radius: var(--r-xl);
+  background: var(--acrylic);
+  box-shadow: var(--shadow-3), inset 0 0 0 1px var(--accent-soft-2);
+}
+.dropRing {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  background: var(--accent-soft);
+  outline: 2px dashed var(--accent-glow);
+  outline-offset: 6px;
+  animation: drop-pulse 1.4s ease-in-out infinite;
+}
+@keyframes drop-pulse {
+  0%, 100% { outline-offset: 6px; }
+  50% { outline-offset: 10px; }
+}
+.dropTitle {
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: 600;
+}
+.dropDesc { color: var(--text-2); font-size: var(--fs-caption); }

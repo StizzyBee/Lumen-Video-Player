@@ -1,0 +1,333 @@
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
+import {
+  ChevronLeft, Play, Pause, Volume2, VolumeX, FastForward, RotateCcw,
+  FolderOpen, TriangleAlert, Camera, Activity, Repeat, X
+} from 'lucide-react'
+import { usePlayer } from '@/core/store/player'
+import { useSettings } from '@/core/store/settings'
+import { useUi } from '@/core/store/ui'
+import { platform, isDesktop } from '@/core/platform'
+import { IconButton } from '@/components/ui/IconButton'
+import { Button } from '@/components/ui/Button'
+import { ControlsBar } from './ControlsBar'
+import { SubtitleLayer } from './SubtitleLayer'
+import { StatsOverlay } from './StatsOverlay'
+import { PlaylistDrawer } from './PlaylistDrawer'
+import styles from './PlayerView.module.css'
+
+const HIDE_DELAY = 2800
+
+export function PlayerView(): ReactNode {
+  const p = usePlayer()
+  const ui = useUi()
+  const settings = useSettings((s) => s.settings)
+  const patchSettings = useSettings((s) => s.patch)
+
+  const [chromeVisible, setChromeVisible] = useState(true)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [hud, setHud] = useState<{ icon: ReactNode; text: string } | null>(null)
+  const [flash, setFlash] = useState<'play' | 'pause' | null>(null)
+
+  const hostRef = useRef<HTMLDivElement | null>(null)
+  const lastActivity = useRef(Date.now())
+  const hudTimer = useRef(0)
+  const holdTimer = useRef(0)
+  const holdEngaged = useRef(false)
+  const holdPrevRate = useRef(1)
+  const suppressClick = useRef(false)
+  const clickTimer = useRef(0)
+  const downPos = useRef<{ x: number; y: number } | null>(null)
+
+  // ── engine host attach ──
+  const attach = useCallback((el: HTMLDivElement | null) => {
+    hostRef.current = el
+    usePlayer.getState().attachHost(el)
+  }, [])
+
+  // ── auto-hide ──
+  const poke = useCallback(() => {
+    lastActivity.current = Date.now()
+    setChromeVisible(true)
+  }, [])
+
+  useEffect(() => {
+    const t = window.setInterval(() => {
+      const s = usePlayer.getState()
+      const uiS = useUi.getState()
+      const busy =
+        s.status !== 'playing' || menuOpen || uiS.playlistDrawerOpen || uiS.contextMenu !== null || uiS.paletteOpen
+      if (!busy && Date.now() - lastActivity.current > HIDE_DELAY) setChromeVisible(false)
+    }, 400)
+    return () => window.clearInterval(t)
+  }, [menuOpen])
+
+  useEffect(() => {
+    const onKey = (): void => poke()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [poke])
+
+  // ── HUD helper ──
+  const showHud = useCallback((icon: ReactNode, text: string) => {
+    setHud({ icon, text })
+    window.clearTimeout(hudTimer.current)
+    hudTimer.current = window.setTimeout(() => setHud(null), 1100)
+  }, [])
+
+  // volume/rate HUD reactions
+  const prevVol = useRef(settings.audio.volume)
+  const prevMuted = useRef(settings.audio.muted)
+  useEffect(() => {
+    if (settings.audio.volume !== prevVol.current || settings.audio.muted !== prevMuted.current) {
+      prevVol.current = settings.audio.volume
+      prevMuted.current = settings.audio.muted
+      showHud(
+        settings.audio.muted ? <VolumeX size={16} /> : <Volume2 size={16} />,
+        settings.audio.muted ? 'Muted' : `${Math.round(settings.audio.volume * 100)}%`
+      )
+    }
+  }, [settings.audio.volume, settings.audio.muted, showHud])
+
+  const prevRate = useRef(p.rate)
+  useEffect(() => {
+    if (p.rate !== prevRate.current) {
+      prevRate.current = p.rate
+      if (!holdEngaged.current) showHud(<FastForward size={16} />, `${parseFloat(p.rate.toFixed(2))}×`)
+    }
+  }, [p.rate, showHud])
+
+  // play/pause flash
+  const prevStatus = useRef(p.status)
+  useEffect(() => {
+    const was = prevStatus.current
+    prevStatus.current = p.status
+    if (p.status === 'playing' && (was === 'paused' || was === 'ended')) {
+      setFlash('play')
+      window.setTimeout(() => setFlash(null), 500)
+    } else if (p.status === 'paused' && was === 'playing') {
+      setFlash('pause')
+      window.setTimeout(() => setFlash(null), 500)
+    }
+  }, [p.status])
+
+  // ── mouse gestures on the surface ──
+  const onPointerDown = (e: React.PointerEvent): void => {
+    if (e.button !== 0) return
+    if ((e.target as HTMLElement).closest('[data-controls], button, [role="menu"]')) return
+    downPos.current = { x: e.clientX, y: e.clientY }
+    holdEngaged.current = false
+    window.clearTimeout(holdTimer.current)
+    holdTimer.current = window.setTimeout(() => {
+      const s = usePlayer.getState()
+      if (s.status !== 'playing') return
+      holdEngaged.current = true
+      holdPrevRate.current = s.rate
+      s.setRate(2)
+      showHud(<FastForward size={16} />, '2× speed')
+    }, 380)
+  }
+  const onPointerMove = (e: React.PointerEvent): void => {
+    poke()
+    if (downPos.current) {
+      const dx = e.clientX - downPos.current.x
+      const dy = e.clientY - downPos.current.y
+      if (dx * dx + dy * dy > 64) window.clearTimeout(holdTimer.current)
+    }
+  }
+  const onPointerUp = (): void => {
+    window.clearTimeout(holdTimer.current)
+    downPos.current = null
+    if (holdEngaged.current) {
+      usePlayer.getState().setRate(holdPrevRate.current)
+      holdEngaged.current = false
+      suppressClick.current = true
+      window.setTimeout(() => (suppressClick.current = false), 80)
+      setHud(null)
+    }
+  }
+  const onClick = (e: React.MouseEvent): void => {
+    if ((e.target as HTMLElement).closest('[data-controls], button, [role="menu"]')) return
+    if (suppressClick.current) return
+    window.clearTimeout(clickTimer.current)
+    clickTimer.current = window.setTimeout(() => p.togglePlay(), 220)
+  }
+  const onDoubleClick = (e: React.MouseEvent): void => {
+    if ((e.target as HTMLElement).closest('[data-controls], button, [role="menu"]')) return
+    window.clearTimeout(clickTimer.current)
+    ui.setFullscreen(!ui.fullscreen)
+  }
+  const onWheel = (e: React.WheelEvent): void => {
+    const delta = e.deltaY < 0 ? 0.05 : -0.05
+    const volume = Math.round(Math.max(0, Math.min(1, settings.audio.volume + delta)) * 100) / 100
+    patchSettings({ audio: { volume, muted: false } })
+    p.applyAudioSettings()
+    poke()
+  }
+  const onAuxClick = (e: React.MouseEvent): void => {
+    if (e.button === 1) {
+      patchSettings({ audio: { muted: !settings.audio.muted } })
+      p.applyAudioSettings()
+    }
+  }
+  const onContextMenu = (e: React.MouseEvent): void => {
+    e.preventDefault()
+    poke()
+    const item = p.item
+    ui.openContextMenu({ x: e.clientX, y: e.clientY }, [
+      {
+        id: 'toggle',
+        label: p.status === 'playing' ? 'Pause' : 'Play',
+        icon: p.status === 'playing' ? <Pause size={16} /> : <Play size={16} />,
+        onSelect: () => p.togglePlay()
+      },
+      { id: 'restart', label: 'Restart', icon: <RotateCcw size={16} />, onSelect: () => p.seekTo(0) },
+      { type: 'separator' },
+      { id: 'shot', label: 'Save screenshot', icon: <Camera size={16} />, hint: 'Ctrl+Shift+S', onSelect: () => void p.screenshot() },
+      { id: 'stats', label: p.statsVisible ? 'Hide stats' : 'Show stats', icon: <Activity size={16} />, hint: 'I', onSelect: () => p.toggleStats() },
+      { id: 'loop', label: 'Cycle loop mode', icon: <Repeat size={16} />, hint: 'R', onSelect: () => p.cycleLoop() },
+      { type: 'separator' },
+      ...(isDesktop && item
+        ? [{ id: 'reveal', label: 'Show in folder', icon: <FolderOpen size={16} />, onSelect: () => platform.shell.showInFolder(item.path) } as const]
+        : []),
+      { id: 'close', label: 'Close player', icon: <X size={16} />, hint: 'Esc', onSelect: () => p.close() }
+    ])
+  }
+
+  const mini = ui.miniMode
+  const showChrome = chromeVisible || p.status === 'paused' || p.status === 'ended' || p.status === 'error' || p.status === 'idle' || p.status === 'loading'
+
+  const errorCopy: Record<string, { title: string; desc: string }> = {
+    unsupported: {
+      title: "This format isn't supported yet",
+      desc: `${p.item?.ext.toUpperCase() ?? 'This'} files need the native playback engine that ships in the next milestone (M4, libmpv). MP4, WebM, and MOV play today.`
+    },
+    decode: {
+      title: 'Codec not supported',
+      desc: 'The video codec inside this file (possibly HEVC 10-bit or an uncommon profile) can\'t be decoded yet. The M4 native engine will handle it.'
+    },
+    network: { title: 'File unreadable', desc: 'The file could not be read. It may have moved, or the drive is unavailable.' }
+  }
+
+  return (
+    <motion.div
+      className={`${styles.view} ${showChrome ? '' : styles.chromeHidden} ${showChrome ? '' : styles.hideCursor}`}
+      initial={{ opacity: 0, scale: 1.02 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, transition: { duration: 0.18 } }}
+      transition={{ type: 'spring', stiffness: 380, damping: 36 }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onClick={onClick}
+      onDoubleClick={onDoubleClick}
+      onWheel={onWheel}
+      onAuxClick={onAuxClick}
+      onContextMenu={onContextMenu}
+    >
+      <div className={styles.surface} ref={attach} />
+      <SubtitleLayer />
+
+      {/* top bar */}
+      {!mini && (
+        <div className={`${styles.topBar} ${styles.chrome}`} data-controls>
+          <IconButton onVideo label="Back" kbd="Esc" onClick={() => p.close()}>
+            <ChevronLeft size={22} />
+          </IconButton>
+          <div className={styles.topTitle}>{p.item?.title}</div>
+        </div>
+      )}
+
+      {/* center transient states */}
+      <div className={styles.center}>
+        <AnimatePresence>
+          {(p.status === 'loading' || p.status === 'buffering') && (
+            <motion.div
+              key="spin"
+              className={styles.spinner}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1, transition: { delay: 0.25 } }}
+              exit={{ opacity: 0 }}
+            />
+          )}
+          {flash && (
+            <motion.div
+              key={flash}
+              className={styles.flash}
+              initial={{ opacity: 0.9, scale: 0.7 }}
+              animate={{ opacity: 0, scale: 1.25 }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+            >
+              {flash === 'play' ? <Play size={34} fill="currentColor" strokeWidth={0} /> : <Pause size={34} fill="currentColor" strokeWidth={0} />}
+            </motion.div>
+          )}
+          {p.status === 'ended' && (
+            <motion.div
+              key="ended"
+              className={styles.bigState}
+              initial={{ opacity: 0, y: 12, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <div className={styles.bigStateTitle}>That's the end</div>
+              <div className={styles.bigStateActions}>
+                <Button variant="primary" icon={<RotateCcw size={16} />} onClick={() => { p.seekTo(0); p.play() }}>
+                  Replay
+                </Button>
+                <Button variant="subtle" onClick={() => p.close()}>
+                  Back to library
+                </Button>
+              </div>
+            </motion.div>
+          )}
+          {p.status === 'error' && (
+            <motion.div
+              key="error"
+              className={styles.bigState}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+            >
+              <TriangleAlert size={34} color="var(--warn)" />
+              <div className={styles.bigStateTitle}>{errorCopy[p.errorKind ?? '']?.title ?? 'Playback failed'}</div>
+              <div className={styles.bigStateDesc}>{errorCopy[p.errorKind ?? '']?.desc ?? 'Something went wrong while playing this file.'}</div>
+              <div className={styles.bigStateActions}>
+                {isDesktop && p.item && (
+                  <Button variant="subtle" icon={<FolderOpen size={16} />} onClick={() => p.item && platform.shell.showInFolder(p.item.path)}>
+                    Show in folder
+                  </Button>
+                )}
+                <Button variant="primary" onClick={() => p.close()}>
+                  Close
+                </Button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* HUD chip */}
+      <AnimatePresence>
+        {hud && (
+          <motion.div
+            className={styles.hud}
+            initial={{ opacity: 0, y: -8, x: '-50%', scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, x: '-50%', scale: 1 }}
+            exit={{ opacity: 0, y: -6, x: '-50%', transition: { duration: 0.15 } }}
+          >
+            {hud.icon}
+            {hud.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {p.statsVisible && <StatsOverlay />}
+
+      <div className={styles.chrome}>
+        <ControlsBar onMenuOpenChange={setMenuOpen} />
+      </div>
+
+      <AnimatePresence>{ui.playlistDrawerOpen && !mini && <PlaylistDrawer />}</AnimatePresence>
+    </motion.div>
+  )
+}

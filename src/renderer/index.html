@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' lumen: data: blob:; media-src 'self' lumen: blob: data: https://commondatastorage.googleapis.com; connect-src 'self' ws: http://localhost:5199 http://localhost:5173 lumen:; font-src 'self'; object-src 'none'; base-uri 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lumen</title>
+    <style>
+      /* Pre-React splash: prevents any flash and makes startup feel instant */
+      html, body { height: 100%; margin: 0; background: #0f0f13; }
+      #root { height: 100%; }
+      .boot {
+        height: 100%; display: grid; place-items: center;
+        animation: boot-in 0.4s ease both;
+      }
+      .boot svg { width: 56px; height: 56px; animation: boot-pulse 1.2s ease-in-out infinite; }
+      @keyframes boot-pulse { 0%, 100% { opacity: 0.5; transform: scale(0.96); } 50% { opacity: 1; transform: scale(1); } }
+      @keyframes boot-in { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="boot" aria-hidden="true">
+        <svg viewBox="0 0 48 48" fill="none">
+          <rect x="4" y="4" width="40" height="40" rx="12" fill="#6c8cff" opacity="0.16" />
+          <path d="M19 16.8c0-1.6 1.74-2.58 3.1-1.74l11.2 6.94a2.04 2.04 0 0 1 0 3.47L22.1 32.4c-1.36.84-3.1-.14-3.1-1.74V16.8Z" fill="#6c8cff" />
+        </svg>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
