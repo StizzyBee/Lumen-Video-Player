@@ -7,6 +7,7 @@ import { parseSubtitles, trackLabelFromPath, type SubtitleTrack } from '@/core/s
 import { positionToSave } from '@/core/resume'
 import { toggleBookmark } from '@/core/bookmarks'
 import { selectEngine } from '@/core/engine/select'
+import { decideEndAction } from '@/core/playback-end'
 import type { MpvTracks } from '@shared/types'
 import { useSettings } from './settings'
 import { useLibrary } from './library'
@@ -113,21 +114,7 @@ function ensureEngine(get: () => PlayerStore, set: (p: Partial<PlayerStore>) => 
     }),
     e.on('error', (errorKind) => set({ errorKind })),
     e.on('pip', (pipActive) => set({ pipActive })),
-    e.on('ended', () => {
-      const s = get()
-      if (s.loop === 'one') {
-        e.seek(0)
-        e.play()
-        return
-      }
-      const auto = useSettings.getState().settings.playback.autoPlay
-      const hasNext = s.queueIndex < s.queue.length - 1
-      if (auto && hasNext) s.next()
-      else if (auto && s.loop === 'all' && s.queue.length > 0) {
-        const first = useLibrary.getState().byId.get(s.queue[0])
-        if (first) s.openItem(first, { queue: s.queue })
-      }
-    })
+    e.on('ended', () => runEndAction(get))
   )
   return e
 }
@@ -143,6 +130,37 @@ function persistPosition(s: PlayerStore): void {
     lastPlayedAt: Date.now(),
     ...(duration ? { durationSec: Math.round(duration) } : {})
   })
+}
+
+/**
+ * Handle end-of-video for whichever engine is active. Loop/autoplay logic is
+ * shared (decideEndAction); only the restart mechanism differs by engine.
+ */
+function runEndAction(get: () => PlayerStore): void {
+  const s = get()
+  const action = decideEndAction({
+    loop: s.loop,
+    queueIndex: s.queueIndex,
+    queueLength: s.queue.length,
+    autoPlay: useSettings.getState().settings.playback.autoPlay
+  })
+  if (action === 'loop-one') {
+    if (s.mpvMode === 'playing') {
+      platform.mpv.seek(0)
+      platform.mpv.playPause(false)
+      usePlayer.setState({ status: 'playing', time: 0 })
+    } else {
+      engine?.seek(0)
+      engine?.play()
+    }
+  } else if (action === 'next') {
+    s.next()
+  } else if (action === 'loop-all') {
+    const first = useLibrary.getState().byId.get(s.queue[0])
+    if (first) s.openItem(first, { queue: s.queue })
+  } else if (s.mpvMode === 'playing') {
+    usePlayer.setState({ status: 'ended' })
+  }
 }
 
 export const usePlayer = create<PlayerStore>((set, get) => ({
@@ -190,10 +208,16 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
         } else if (e.type === 'tracks') {
           set({ mpvTracks: (e.data as MpvTracks) ?? { audio: [], sub: [] } })
         } else if (e.type === 'prop') {
-          if (e.name === 'time-pos' && typeof e.data === 'number') set({ time: e.data })
-          else if (e.name === 'duration' && typeof e.data === 'number') set({ duration: e.data })
+          if (e.name === 'time-pos' && typeof e.data === 'number') {
+            const t = e.data
+            // A-B repeat: jump back to A once we reach B
+            if (s.ab.a !== null && s.ab.b !== null && t >= s.ab.b) {
+              platform.mpv.seek(s.ab.a)
+              set({ time: s.ab.a })
+            } else set({ time: t })
+          } else if (e.name === 'duration' && typeof e.data === 'number') set({ duration: e.data })
           else if (e.name === 'pause') set({ status: e.data ? 'paused' : 'playing' })
-          else if (e.name === 'eof-reached' && e.data) set({ status: 'ended' })
+          else if (e.name === 'eof-reached' && e.data) runEndAction(get)
         } else if (e.type === 'ready') {
           set({ status: 'playing' })
         } else if (e.type === 'error') {
@@ -516,16 +540,26 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
   },
 
   async screenshot() {
-    const e = engine
     const item = get().item
-    if (!e || !item) return
+    if (!item) return
+    const t = Math.floor(get().time)
+    const stamp = `${String(Math.floor(t / 60)).padStart(2, '0')}-${String(t % 60).padStart(2, '0')}`
+    const name = `${item.title.replace(/[<>:"/\\|?*]+/g, '')} — ${stamp}.png`
+
+    // mpv renders in its own GPU window, so capture through mpv itself.
+    if (get().mpvMode === 'playing') {
+      const saved = await platform.mpv.screenshot(name)
+      if (saved) useUi.getState().toast({ kind: 'ok', title: 'Screenshot saved', desc: saved })
+      return
+    }
+
+    const e = engine
+    if (!e) return
     const dataUrl = await e.captureFrame()
     if (!dataUrl) {
       useUi.getState().toast({ kind: 'warn', title: 'Could not capture frame' })
       return
     }
-    const t = Math.floor(get().time)
-    const name = `${item.title.replace(/[<>:"/\\|?*]+/g, '')} — ${String(Math.floor(t / 60)).padStart(2, '0')}-${String(t % 60).padStart(2, '0')}.png`
     const saved = await platform.shell.saveScreenshot(dataUrl, name)
     if (saved) {
       useUi.getState().toast({ kind: 'ok', title: 'Screenshot saved', desc: saved })
@@ -534,6 +568,12 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
 
   applyAudioSettings() {
     const a = useSettings.getState().settings.audio
+    if (get().mpvMode === 'playing') {
+      // mpv has its own volume/mute; boost/EQ/normalize are WebAudio-only
+      platform.mpv.setVolume(a.volume)
+      platform.mpv.setMuted(a.muted)
+      return
+    }
     if (!engine) return
     engine.setVolume(a.volume)
     engine.setMuted(a.muted)

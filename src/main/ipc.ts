@@ -57,6 +57,37 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.on('mpv:set-audio-track', (_e, id: number) => mpv.setAudioTrack(id))
   ipcMain.on('mpv:set-sub-track', (_e, id: number | 'no') => mpv.setSubTrack(id))
   ipcMain.on('mpv:frame-step', (_e, dir: 1 | -1) => mpv.frameStep(dir))
+  ipcMain.handle('mpv:screenshot', async (_e, suggestedName: string) => {
+    const res = await dialog.showSaveDialog(win(), {
+      title: 'Save screenshot',
+      defaultPath: join(
+        app.getPath('pictures'),
+        sanitize(typeof suggestedName === 'string' && suggestedName ? suggestedName : 'screenshot.png')
+      ),
+      filters: [{ name: 'PNG image', extensions: ['png'] }]
+    })
+    if (res.canceled || !res.filePath) return null
+    const target = res.filePath
+    // Record the current mtime so we can confirm mpv actually (re)wrote the file.
+    let before = -1
+    try {
+      before = (await fsp.stat(target)).mtimeMs
+    } catch {
+      /* new file — fine */
+    }
+    mpv.screenshot(target)
+    // mpv writes asynchronously over the IPC pipe; wait until the file lands.
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 50))
+      try {
+        const st = await fsp.stat(target)
+        if (st.size > 0 && st.mtimeMs !== before) return target
+      } catch {
+        /* not written yet */
+      }
+    }
+    return null
+  })
   ipcMain.on('mpv:stop', () => mpv.stop())
 
   // ── window ────────────────────────────────────────────────────────────────

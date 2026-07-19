@@ -213,6 +213,7 @@ export function createMockLumen(): LumenApi {
       setAudioTrack: () => {},
       setSubTrack: () => {},
       frameStep: () => {},
+      screenshot: async () => null,
       stop: () => {},
       onEvent: () => () => {}
     },

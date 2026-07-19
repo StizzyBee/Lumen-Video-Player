@@ -18,6 +18,8 @@ describe('command builders', () => {
     expect(cmd.setProp('volume', 80)).toEqual(['set_property', 'volume', 80])
     expect(cmd.seek(42.5)).toEqual(['seek', 42.5, 'absolute', 'exact'])
     expect(cmd.observe(3, 'pause')).toEqual(['observe_property', 3, 'pause'])
+    expect(cmd.screenshotTo('C:\\shot.png')).toEqual(['screenshot-to-file', 'C:\\shot.png', 'video'])
+    expect(cmd.frameBackStep()).toEqual(['frame-back-step'])
   })
 })
 

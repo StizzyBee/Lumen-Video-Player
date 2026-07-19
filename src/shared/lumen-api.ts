@@ -84,6 +84,8 @@ export interface LumenApi {
     setAudioTrack(id: number): void
     setSubTrack(id: number | 'no'): void
     frameStep(dir: 1 | -1): void
+    /** Save a frame from mpv's window via a save dialog; resolves to the written path or null */
+    screenshot(suggestedName: string): Promise<string | null>
     stop(): void
     onEvent(cb: (e: { type: string; name?: string; data?: unknown; message?: string }) => void): Unsubscribe
   }

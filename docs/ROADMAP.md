@@ -34,9 +34,9 @@ Command palette (all commands + files + settings), customizable shortcuts editor
 
 ## M4 — Native engine (mpv) 🟡 in progress
 
-**Shipped (v0.1.4–v0.1.6):** HEVC/H.265 decode enabled in the built-in engine (MP4/MOV) with the HDR pipeline; `MpvEngine` sidecar that detects an installed mpv (plain **or** mpv.net) and plays MKV/AVI/WMV/FLV/TS and true-HDR content via JSON IPC (`--vo=gpu-next` + tone-mapping); engine auto-selection; in-app setup/locate flow; **embedded audio + subtitle track switching** (mpv `track-list` → Lumen's menus); **resume position** for mpv items; unit-tested protocol/selection/detection/track-parsing logic. **Verified end-to-end**: mpv decodes a real HEVC-in-MKV and answers IPC (duration/codec/dimensions). See ADR-012/013.
+**Shipped (v0.1.4–v0.1.7):** HEVC/H.265 decode enabled in the built-in engine (MP4/MOV) with the HDR pipeline; `MpvEngine` sidecar that detects an installed mpv (plain **or** mpv.net) and plays MKV/AVI/WMV/FLV/TS and true-HDR content via JSON IPC (`--vo=gpu-next` + tone-mapping); engine auto-selection; in-app setup/locate flow; **embedded audio + subtitle track switching** (mpv `track-list` → Lumen's menus); **resume position** for mpv items; **full transport parity** (v0.1.7): frame screenshots via `screenshot-to-file`, live volume/mute, A-B repeat, and loop-one/autoplay-next/loop-all — all sharing the built-in engine's logic (`core/playback-end.ts`); unit-tested protocol/selection/detection/track-parsing/end-action logic. **Verified end-to-end**: mpv decodes a real HEVC-in-MKV and answers IPC (duration/codec/dimensions), writes a valid 1280×720 PNG screenshot, and round-trips volume/mute/seek. See ADR-012/013.
 
-**Remaining:** in-Lumen-window rendering (currently mpv uses its own GPU window), precise-seek modes, mpv-side screenshots/thumbnails, optional bundled mpv, and on-HDR-hardware verification of passthrough.
+**Remaining:** in-Lumen-window rendering (currently mpv uses its own GPU window), precise-seek modes, external subtitle sideloading + fit-mode routing for mpv items, mpv thumbnails, optional bundled mpv, and on-HDR-hardware verification of passthrough.
 
 ## M4 (original scope, for reference) 🔜
 

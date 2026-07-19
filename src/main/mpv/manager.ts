@@ -141,6 +141,8 @@ export class MpvManager {
   setVolume(v: number): void { this.write(cmd.setProp('volume', Math.round(v * 100))) }
   setMuted(m: boolean): void { this.write(cmd.setProp('mute', m)) }
   frameStep(dir: 1 | -1): void { this.write(dir > 0 ? cmd.frameStep() : cmd.frameBackStep()) }
+  /** Ask mpv to write the current video frame (no OSD/subs) to an absolute path. */
+  screenshot(path: string): void { this.write(cmd.screenshotTo(path)) }
 
   stop(): void {
     if (this.sock) {
