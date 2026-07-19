@@ -124,26 +124,40 @@ export function ControlsBar({ onMenuOpenChange }: { onMenuOpenChange: (open: boo
     p.applyAudioSettings()
   }
 
-  const subsEntries: MenuEntry[] = [
-    { type: 'header', label: 'Subtitles' },
-    { id: 'off', label: 'Off', checked: p.activeSubId === null, onSelect: () => p.setActiveSub(null) },
-    ...p.subTracks.map((t) => ({
-      id: t.id,
-      label: t.label,
-      checked: p.activeSubId === t.id,
-      onSelect: () => p.setActiveSub(t.id)
-    })),
-    { type: 'separator' },
-    {
-      id: 'add',
-      label: 'Add subtitle file…',
-      icon: <FilePlus2 size={16} />,
-      onSelect: () => fileInput.current?.click()
-    },
-    { type: 'header', label: `Delay ${p.subDelayMs >= 0 ? '+' : ''}${(p.subDelayMs / 1000).toFixed(2)}s` },
-    { id: 'delay-', label: 'Earlier (−250ms)', icon: <RotateCcw size={16} />, onSelect: () => p.nudgeSubDelay(-250) },
-    { id: 'delay+', label: 'Later (+250ms)', icon: <RotateCw size={16} />, onSelect: () => p.nudgeSubDelay(250) }
-  ]
+  const onMpv = p.mpvMode === 'playing'
+
+  // mpv exposes embedded tracks; the built-in engine uses external sidecar subs.
+  const subsEntries: MenuEntry[] = onMpv
+    ? [
+        { type: 'header', label: 'Subtitles' },
+        { id: 'sub-off', label: 'Off', checked: !p.mpvTracks.sub.some((t) => t.selected), onSelect: () => p.setMpvSubTrack('no') },
+        ...p.mpvTracks.sub.map((t) => ({
+          id: `sub-${t.id}`,
+          label: t.label,
+          checked: t.selected,
+          onSelect: () => p.setMpvSubTrack(t.id)
+        }))
+      ]
+    : [
+        { type: 'header', label: 'Subtitles' },
+        { id: 'off', label: 'Off', checked: p.activeSubId === null, onSelect: () => p.setActiveSub(null) },
+        ...p.subTracks.map((t) => ({
+          id: t.id,
+          label: t.label,
+          checked: p.activeSubId === t.id,
+          onSelect: () => p.setActiveSub(t.id)
+        })),
+        { type: 'separator' },
+        {
+          id: 'add',
+          label: 'Add subtitle file…',
+          icon: <FilePlus2 size={16} />,
+          onSelect: () => fileInput.current?.click()
+        },
+        { type: 'header', label: `Delay ${p.subDelayMs >= 0 ? '+' : ''}${(p.subDelayMs / 1000).toFixed(2)}s` },
+        { id: 'delay-', label: 'Earlier (−250ms)', icon: <RotateCcw size={16} />, onSelect: () => p.nudgeSubDelay(-250) },
+        { id: 'delay+', label: 'Later (+250ms)', icon: <RotateCw size={16} />, onSelect: () => p.nudgeSubDelay(250) }
+      ]
 
   const speedEntries: MenuEntry[] = [
     { type: 'header', label: 'Playback speed' },
@@ -164,7 +178,19 @@ export function ControlsBar({ onMenuOpenChange }: { onMenuOpenChange: (open: boo
     }
   ]
 
-  const audioEntries: MenuEntry[] = [
+  const audioEntries: MenuEntry[] = onMpv
+    ? [
+        { type: 'header', label: p.mpvTracks.audio.length > 1 ? 'Audio track' : 'Audio' },
+        ...(p.mpvTracks.audio.length
+          ? p.mpvTracks.audio.map((t) => ({
+              id: `aud-${t.id}`,
+              label: t.label,
+              checked: t.selected,
+              onSelect: () => p.setMpvAudioTrack(t.id)
+            }))
+          : [{ id: 'aud-none', label: 'Single audio track', disabled: true, onSelect: () => {} }])
+      ]
+    : [
     { type: 'header', label: 'Audio boost' },
     ...[1, 1.5, 2, 3].map((b) => ({
       id: `boost${b}`,

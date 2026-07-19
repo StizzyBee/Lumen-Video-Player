@@ -6,7 +6,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import net from 'node:net'
-import { encodeCommand, parseMessages, cmd, OBSERVED, type MpvResponse } from './protocol'
+import { encodeCommand, parseMessages, cmd, OBSERVED, parseTrackList, type MpvResponse } from './protocol'
 import { mpvCandidates, type LocateEnv } from './locate'
 import type { HdrMode } from '@shared/types'
 
@@ -25,6 +25,7 @@ export class MpvManager {
   private reqId = 100
   private pipeName = ''
   private cachedPath: string | null | undefined = undefined
+  private trackReqPending = false
 
   constructor(private send: Send, private locateEnv: () => LocateEnv) {}
 
@@ -108,11 +109,24 @@ export class MpvManager {
 
   private relay(m: MpvResponse): void {
     if (m.event === 'property-change' && m.name) {
-      this.send('mpv:event', { type: 'prop', name: m.name, data: m.data })
+      if (m.name === 'track-list') {
+        this.send('mpv:event', { type: 'tracks', data: parseTrackList(m.data) })
+      } else {
+        this.send('mpv:event', { type: 'prop', name: m.name, data: m.data })
+      }
+    } else if (m.event === 'file-loaded') {
+      this.write(['get_property', 'track-list'])
+      this.trackReqPending = true
     } else if (m.event === 'end-file') {
       this.send('mpv:event', { type: 'prop', name: 'eof-reached', data: true })
+    } else if (m.request_id && this.trackReqPending && Array.isArray(m.data)) {
+      this.trackReqPending = false
+      this.send('mpv:event', { type: 'tracks', data: parseTrackList(m.data) })
     }
   }
+
+  setAudioTrack(id: number): void { this.write(cmd.setProp('aid', id)) }
+  setSubTrack(id: number | 'no'): void { this.write(cmd.setProp('sid', id)) }
 
   private write(command: (string | number | boolean)[]): void {
     if (!this.sock) return

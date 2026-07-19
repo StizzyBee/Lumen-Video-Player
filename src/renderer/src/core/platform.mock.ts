@@ -210,6 +210,9 @@ export function createMockLumen(): LumenApi {
       setRate: () => {},
       setVolume: () => {},
       setMuted: () => {},
+      setAudioTrack: () => {},
+      setSubTrack: () => {},
+      frameStep: () => {},
       stop: () => {},
       onEvent: () => () => {}
     },

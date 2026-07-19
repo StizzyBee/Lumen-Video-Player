@@ -8,7 +8,6 @@ import type { DeepPartial } from '@shared/lumen-api'
 import { pathGuard, mediaUrl } from './protocol'
 import { setMiniMode } from './window'
 import { MpvManager } from './mpv/manager'
-import { app as electronApp } from 'electron'
 
 export interface IpcDeps {
   win: BrowserWindow
@@ -32,7 +31,7 @@ export function registerIpc(deps: IpcDeps): void {
       userPath: settings.get().video?.mpvPath || undefined,
       bundledPath: join(process.resourcesPath ?? '', 'mpv', 'mpv.exe'),
       pathEnv: process.env.PATH,
-      localAppData: electronApp.getPath('appData').replace(/Roaming$/, 'Local'),
+      localAppData: process.env.LOCALAPPDATA,
       programFiles: process.env['ProgramFiles'],
       programFilesX86: process.env['ProgramFiles(x86)']
     })
@@ -55,6 +54,9 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.on('mpv:set-rate', (_e, r: number) => mpv.setRate(r))
   ipcMain.on('mpv:set-volume', (_e, v: number) => mpv.setVolume(v))
   ipcMain.on('mpv:set-muted', (_e, m: boolean) => mpv.setMuted(m))
+  ipcMain.on('mpv:set-audio-track', (_e, id: number) => mpv.setAudioTrack(id))
+  ipcMain.on('mpv:set-sub-track', (_e, id: number | 'no') => mpv.setSubTrack(id))
+  ipcMain.on('mpv:frame-step', (_e, dir: 1 | -1) => mpv.frameStep(dir))
   ipcMain.on('mpv:stop', () => mpv.stop())
 
   // ── window ────────────────────────────────────────────────────────────────

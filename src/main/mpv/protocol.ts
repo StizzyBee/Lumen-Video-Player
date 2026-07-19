@@ -1,6 +1,7 @@
 // Pure helpers for mpv's JSON IPC (newline-delimited JSON over a named pipe).
-// No Node/Electron imports so it stays unit-testable.
 // Protocol: https://mpv.io/manual/master/#json-ipc
+import type { MpvTrack, MpvTracks } from '@shared/types'
+export type { MpvTrack, MpvTracks } from '@shared/types'
 
 export interface MpvCommand {
   command: (string | number | boolean)[]
@@ -60,6 +61,33 @@ export function isEvent(msg: MpvResponse): msg is MpvResponse & { event: string 
   return typeof msg.event === 'string'
 }
 
+interface RawTrack {
+  id?: number
+  type?: string
+  title?: string
+  lang?: string
+  codec?: string
+  selected?: boolean
+}
+
+/** Map mpv's `track-list` into audio + subtitle lists with display labels. */
+export function parseTrackList(list: unknown): MpvTracks {
+  const out: MpvTracks = { audio: [], sub: [] }
+  if (!Array.isArray(list)) return out
+  for (const raw of list as RawTrack[]) {
+    if (typeof raw?.id !== 'number') continue
+    const lang = raw.lang ? raw.lang.toUpperCase() : undefined
+    const label =
+      raw.title?.trim() ||
+      [lang, raw.codec?.toUpperCase()].filter(Boolean).join(' · ') ||
+      `Track ${raw.id}`
+    const track: MpvTrack = { id: raw.id, label, lang, selected: !!raw.selected }
+    if (raw.type === 'audio') out.audio.push(track)
+    else if (raw.type === 'sub') out.sub.push(track)
+  }
+  return out
+}
+
 /** Properties Lumen observes for live UI updates, with stable ids. */
 export const OBSERVED = [
   { id: 1, name: 'time-pos' },
@@ -70,5 +98,6 @@ export const OBSERVED = [
   { id: 6, name: 'height' },
   { id: 7, name: 'video-codec' },
   { id: 8, name: 'video-params/sig-peak' },
-  { id: 9, name: 'paused-for-cache' }
+  { id: 9, name: 'paused-for-cache' },
+  { id: 10, name: 'track-list' }
 ] as const

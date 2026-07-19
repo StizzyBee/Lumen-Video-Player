@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { encodeCommand, parseMessages, cmd, isEvent, OBSERVED } from './protocol'
+import { encodeCommand, parseMessages, cmd, isEvent, OBSERVED, parseTrackList } from './protocol'
 
 describe('encodeCommand', () => {
   it('serializes a command with a trailing newline', () => {
@@ -41,6 +41,27 @@ describe('parseMessages', () => {
     expect(isEvent(r.messages[0])).toBe(true)
     expect(r.messages[0].name).toBe('time-pos')
     expect(r.messages[0].data).toBe(12.3)
+  })
+})
+
+describe('parseTrackList', () => {
+  it('splits audio and subtitle tracks with labels and selection', () => {
+    const t = parseTrackList([
+      { id: 1, type: 'video', codec: 'hevc', selected: true },
+      { id: 1, type: 'audio', title: 'Surround', lang: 'eng', codec: 'eac3', selected: true },
+      { id: 2, type: 'audio', lang: 'jpn', codec: 'aac', selected: false },
+      { id: 1, type: 'sub', lang: 'eng', selected: false },
+      { id: 2, type: 'sub', title: 'Forced', selected: true }
+    ])
+    expect(t.audio).toHaveLength(2)
+    expect(t.sub).toHaveLength(2)
+    expect(t.audio[0]).toEqual({ id: 1, label: 'Surround', lang: 'ENG', selected: true })
+    expect(t.audio[1].label).toBe('JPN · AAC')
+    expect(t.sub[1]).toMatchObject({ id: 2, label: 'Forced', selected: true })
+  })
+  it('tolerates non-array / empty input', () => {
+    expect(parseTrackList(null)).toEqual({ audio: [], sub: [] })
+    expect(parseTrackList([{ type: 'audio' }])).toEqual({ audio: [], sub: [] })
   })
 })
 

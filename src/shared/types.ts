@@ -80,6 +80,17 @@ export interface VideoSettings {
   mpvPath?: string
 }
 
+export interface MpvTrack {
+  id: number
+  label: string
+  lang?: string
+  selected: boolean
+}
+export interface MpvTracks {
+  audio: MpvTrack[]
+  sub: MpvTrack[]
+}
+
 export interface Settings {
   schema: 1
   theme: {

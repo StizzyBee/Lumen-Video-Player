@@ -58,6 +58,9 @@ const api: LumenApi = {
     setRate: (rate) => ipcRenderer.send('mpv:set-rate', rate),
     setVolume: (v) => ipcRenderer.send('mpv:set-volume', v),
     setMuted: (m) => ipcRenderer.send('mpv:set-muted', m),
+    setAudioTrack: (id) => ipcRenderer.send('mpv:set-audio-track', id),
+    setSubTrack: (id) => ipcRenderer.send('mpv:set-sub-track', id),
+    frameStep: (dir) => ipcRenderer.send('mpv:frame-step', dir),
     stop: () => ipcRenderer.send('mpv:stop'),
     onEvent: (cb) => on('mpv:event', cb)
   },

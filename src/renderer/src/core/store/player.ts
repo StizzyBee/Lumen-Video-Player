@@ -7,6 +7,7 @@ import { parseSubtitles, trackLabelFromPath, type SubtitleTrack } from '@/core/s
 import { positionToSave } from '@/core/resume'
 import { toggleBookmark } from '@/core/bookmarks'
 import { selectEngine } from '@/core/engine/select'
+import type { MpvTracks } from '@shared/types'
 import { useSettings } from './settings'
 import { useLibrary } from './library'
 import { useUi } from './ui'
@@ -66,8 +67,11 @@ interface PlayerStore {
   mpvAvailable: boolean
   /** 'off' = built-in engine, 'playing' = mpv window active, 'needed' = mpv missing */
   mpvMode: 'off' | 'playing' | 'needed'
+  mpvTracks: MpvTracks
   detectMpv(): Promise<void>
   locateMpv(): Promise<void>
+  setMpvAudioTrack(id: number): void
+  setMpvSubTrack(id: number | 'no'): void
 }
 
 let engine: PlaybackEngine | null = null
@@ -162,6 +166,16 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
   fit: 'contain',
   mpvAvailable: false,
   mpvMode: 'off',
+  mpvTracks: { audio: [], sub: [] },
+
+  setMpvAudioTrack(id) {
+    platform.mpv.setAudioTrack(id)
+    set((s) => ({ mpvTracks: { ...s.mpvTracks, audio: s.mpvTracks.audio.map((t) => ({ ...t, selected: t.id === id })) } }))
+  },
+  setMpvSubTrack(id) {
+    platform.mpv.setSubTrack(id)
+    set((s) => ({ mpvTracks: { ...s.mpvTracks, sub: s.mpvTracks.sub.map((t) => ({ ...t, selected: t.id === id })) } }))
+  },
 
   async detectMpv() {
     const path = await platform.mpv.detect()
@@ -173,6 +187,8 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
         if (s.mpvMode !== 'playing') return
         if (e.type === 'exit') {
           s.close()
+        } else if (e.type === 'tracks') {
+          set({ mpvTracks: (e.data as MpvTracks) ?? { audio: [], sub: [] } })
         } else if (e.type === 'prop') {
           if (e.name === 'time-pos' && typeof e.data === 'number') set({ time: e.data })
           else if (e.name === 'duration' && typeof e.data === 'number') set({ duration: e.data })
@@ -238,7 +254,8 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
         dimensions: item.width && item.height ? { width: item.width, height: item.height } : null,
         status: choice === 'mpv' ? 'loading' : 'error',
         errorKind: choice === 'mpv' ? null : 'needmpv',
-        mpvMode: choice === 'mpv' ? 'playing' : 'needed'
+        mpvMode: choice === 'mpv' ? 'playing' : 'needed',
+        mpvTracks: { audio: [], sub: [] }
       })
       useUi.getState().navigate({ name: 'player' })
       if (choice === 'mpv') {
@@ -250,6 +267,11 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
         })
         platform.app.setPlaying(true)
         useLibrary.getState().patchItem(item.id, { lastPlayedAt: Date.now(), playCount: item.playCount + 1 })
+        // periodic resume-position save (time/duration are mirrored from mpv)
+        if (persistTimer) window.clearInterval(persistTimer)
+        persistTimer = window.setInterval(() => {
+          if (get().status === 'playing') persistPosition(get())
+        }, 5000)
       }
       return
     }
@@ -304,8 +326,8 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
   },
 
   close() {
+    persistPosition(get())
     if (get().mpvMode === 'playing') platform.mpv.stop()
-    else persistPosition(get())
     if (persistTimer) window.clearInterval(persistTimer)
     persistTimer = null
     for (const u of unsubs) u()
@@ -403,6 +425,7 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
     set({ ab: { a: null, b: null } })
   },
   frameStep(dir) {
+    if (get().mpvMode === 'playing') return platform.mpv.frameStep(dir)
     engine?.frameStep(dir)
   },
 

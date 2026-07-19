@@ -81,6 +81,9 @@ export interface LumenApi {
     setRate(rate: number): void
     setVolume(v: number): void
     setMuted(m: boolean): void
+    setAudioTrack(id: number): void
+    setSubTrack(id: number | 'no'): void
+    frameStep(dir: 1 | -1): void
     stop(): void
     onEvent(cb: (e: { type: string; name?: string; data?: unknown; message?: string }) => void): Unsubscribe
   }
