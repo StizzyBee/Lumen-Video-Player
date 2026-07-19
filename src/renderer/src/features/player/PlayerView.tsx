@@ -8,6 +8,7 @@ import { usePlayer } from '@/core/store/player'
 import { useSettings } from '@/core/store/settings'
 import { useUi } from '@/core/store/ui'
 import { platform, isDesktop } from '@/core/platform'
+import { HTML5_CONTAINERS } from '@/core/engine/select'
 import { IconButton } from '@/components/ui/IconButton'
 import { Button } from '@/components/ui/Button'
 import { ControlsBar } from './ControlsBar'
@@ -187,6 +188,9 @@ export function PlayerView(): ReactNode {
       { id: 'stats', label: p.statsVisible ? 'Hide stats' : 'Show stats', icon: <Activity size={16} />, hint: 'I', onSelect: () => p.toggleStats() },
       { id: 'loop', label: 'Cycle loop mode', icon: <Repeat size={16} />, hint: 'R', onSelect: () => p.cycleLoop() },
       { type: 'separator' },
+      ...(p.mpvAvailable && p.mpvMode !== 'playing' && item
+        ? [{ id: 'mpv', label: 'Play in mpv engine', icon: <MonitorPlay size={16} />, onSelect: () => p.playInMpv() } as const]
+        : []),
       ...(isDesktop && item
         ? [{ id: 'reveal', label: 'Show in folder', icon: <FolderOpen size={16} />, onSelect: () => platform.shell.showInFolder(item.path) } as const]
         : []),
@@ -196,6 +200,9 @@ export function PlayerView(): ReactNode {
 
   const mini = ui.miniMode
   const showChrome = chromeVisible || p.status === 'paused' || p.status === 'ended' || p.status === 'error' || p.status === 'idle' || p.status === 'loading'
+  // A file in one of Chromium's own containers that still needs mpv is a codec
+  // problem (HEVC/10-bit/DTS), not a container problem — say so.
+  const codecNeedsMpv = HTML5_CONTAINERS.has((p.item?.ext ?? '').toLowerCase())
 
   const errorCopy: Record<string, { title: string; desc: string }> = {
     unsupported: {
@@ -205,6 +212,10 @@ export function PlayerView(): ReactNode {
     decode: {
       title: 'Codec not supported here',
       desc: "This file's codec couldn't be decoded by the built-in engine. The mpv engine (Settings → Video) decodes it in software, including 10-bit HDR."
+    },
+    stall: {
+      title: 'Playback stalled',
+      desc: "The built-in engine couldn't keep decoding this file — usually an HEVC, 10-bit, or Dolby/DTS track. The mpv engine plays it in software."
     },
     network: { title: 'File unreadable', desc: 'The file could not be read. It may have moved, or the drive is unavailable.' }
   }
@@ -245,10 +256,22 @@ export function PlayerView(): ReactNode {
       {p.mpvMode === 'needed' && (
         <div className={styles.mpvPanel}>
           <Download size={40} strokeWidth={1.5} />
-          <div className={styles.mpvTitle}>This file needs the mpv engine</div>
+          <div className={styles.mpvTitle}>
+            {codecNeedsMpv ? 'This file needs the mpv engine to decode' : 'This file needs the mpv engine'}
+          </div>
           <div className={styles.mpvDesc}>
-            {p.item?.ext.toUpperCase()} files (MKV, AVI, WMV, FLV, TS…) play through mpv — a free, open-source engine
-            that also gives true HDR tone-mapping. Install mpv, then point Lumen at it.
+            {codecNeedsMpv ? (
+              <>
+                This {p.item?.ext.toUpperCase()} uses a codec the built-in engine can&apos;t decode here — most likely
+                HEVC/H.265, 10-bit video, or Dolby/DTS audio. mpv decodes all of them in software, with true HDR
+                tone-mapping. Install mpv, then point Lumen at it.
+              </>
+            ) : (
+              <>
+                {p.item?.ext.toUpperCase()} files (MKV, AVI, WMV, FLV, TS…) play through mpv — a free, open-source
+                engine that also gives true HDR tone-mapping. Install mpv, then point Lumen at it.
+              </>
+            )}
           </div>
           <div className={styles.bigStateActions}>
             <Button variant="primary" icon={<Download size={16} />} onClick={() => window.open('https://mpv.io/installation/', '_blank')}>
@@ -326,12 +349,17 @@ export function PlayerView(): ReactNode {
               <div className={styles.bigStateTitle}>{errorCopy[p.errorKind ?? '']?.title ?? 'Playback failed'}</div>
               <div className={styles.bigStateDesc}>{errorCopy[p.errorKind ?? '']?.desc ?? 'Something went wrong while playing this file.'}</div>
               <div className={styles.bigStateActions}>
+                {p.mpvAvailable && p.item && (
+                  <Button variant="primary" icon={<MonitorPlay size={16} />} onClick={() => p.playInMpv()}>
+                    Play in mpv engine
+                  </Button>
+                )}
                 {isDesktop && p.item && (
                   <Button variant="subtle" icon={<FolderOpen size={16} />} onClick={() => p.item && platform.shell.showInFolder(p.item.path)}>
                     Show in folder
                   </Button>
                 )}
-                <Button variant="primary" onClick={() => p.close()}>
+                <Button variant={p.mpvAvailable ? 'ghost' : 'primary'} onClick={() => p.close()}>
                   Close
                 </Button>
               </div>

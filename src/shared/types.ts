@@ -78,6 +78,8 @@ export interface VideoSettings {
   color: ColorAdjust
   /** User-located mpv.exe path (mpv engine, beta) */
   mpvPath?: string
+  /** Route every file through mpv (for libraries that are mostly HEVC/10-bit/DTS) */
+  preferMpv?: boolean
 }
 
 export interface MpvTrack {
@@ -180,7 +182,8 @@ export const DEFAULT_SETTINGS: Settings = {
   video: {
     cap: 'auto',
     hdr: 'auto',
-    color: { brightness: 1, contrast: 1, saturation: 1, gamma: 1 }
+    color: { brightness: 1, contrast: 1, saturation: 1, gamma: 1 },
+    preferMpv: false
   },
   playback: {
     rememberPosition: true,

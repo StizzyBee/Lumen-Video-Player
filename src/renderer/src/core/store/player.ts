@@ -7,6 +7,7 @@ import { parseSubtitles, trackLabelFromPath, type SubtitleTrack } from '@/core/s
 import { positionToSave } from '@/core/resume'
 import { toggleBookmark } from '@/core/bookmarks'
 import { selectEngine } from '@/core/engine/select'
+import { fallbackForHtmlFailure } from '@/core/engine/fallback'
 import { decideEndAction } from '@/core/playback-end'
 import type { MpvTracks } from '@shared/types'
 import { useSettings } from './settings'
@@ -36,7 +37,9 @@ interface PlayerStore {
   fit: VideoFit
 
   attachHost(el: HTMLElement | null): void
-  openItem(item: LibraryItem, opts?: { queue?: string[]; startOver?: boolean }): void
+  openItem(item: LibraryItem, opts?: { queue?: string[]; startOver?: boolean; forceMpv?: boolean }): void
+  /** Re-open the current item in the mpv engine (manual override / auto-fallback) */
+  playInMpv(): void
   openPaths(paths: string[]): Promise<void>
   close(): void
   togglePlay(): void
@@ -112,7 +115,28 @@ function ensureEngine(get: () => PlayerStore, set: (p: Partial<PlayerStore>) => 
         useLibrary.getState().patchItem(item.id, { width: dimensions.width, height: dimensions.height })
       }
     }),
-    e.on('error', (errorKind) => set({ errorKind })),
+    e.on('error', (errorKind) => {
+      const s = get()
+      const action = s.item ? fallbackForHtmlFailure(s.item.ext, errorKind, s.mpvAvailable) : 'none'
+      if (action === 'mpv' && s.item) {
+        useUi.getState().toast(
+          { kind: 'info', title: 'Switching to the mpv engine', desc: "This file's codec needs mpv — handing off." },
+          2600
+        )
+        // Defer so we don't tear down the engine from inside its own emit.
+        const item = s.item
+        const queue = s.queue
+        window.setTimeout(() => {
+          if (get().item?.id === item.id) get().openItem(item, { queue, forceMpv: true })
+        }, 0)
+        return
+      }
+      if (action === 'needmpv') {
+        set({ status: 'error', errorKind: 'needmpv', mpvMode: 'needed' })
+        return
+      }
+      set({ status: 'error', errorKind })
+    }),
     e.on('pip', (pipActive) => set({ pipActive })),
     e.on('ended', () => runEndAction(get))
   )
@@ -254,8 +278,10 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
       !opts?.startOver && settings.playback.rememberPosition && item.positionSec ? item.positionSec : 0
 
     // Route MKV/AVI/HEVC-in-mkv etc. to the mpv engine when the built-in
-    // Chromium engine can't handle the container.
-    const choice = selectEngine(item.ext, { mpvAvailable: get().mpvAvailable })
+    // Chromium engine can't handle the container — or when the user prefers
+    // mpv / we're falling back after a decode failure.
+    const preferMpv = !!settings.video.preferMpv || !!opts?.forceMpv
+    const choice = selectEngine(item.ext, { mpvAvailable: get().mpvAvailable, preferMpv })
     if (choice !== 'html5') {
       // tear down any html5 engine first
       if (engine) {
@@ -338,6 +364,17 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
     persistTimer = window.setInterval(() => {
       if (get().status === 'playing') persistPosition(get())
     }, 5000)
+  },
+
+  playInMpv() {
+    const s = get()
+    if (!s.item) return
+    if (s.mpvMode === 'playing') return // already in mpv
+    if (!s.mpvAvailable) {
+      set({ status: 'error', errorKind: 'needmpv', mpvMode: 'needed' })
+      return
+    }
+    get().openItem(s.item, { queue: s.queue, forceMpv: true })
   },
 
   async openPaths(paths) {

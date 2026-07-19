@@ -47,6 +47,14 @@ export class HtmlVideoEngine implements PlaybackEngine {
    *  duration=Infinity until we force resolution by seeking far past the end. */
   private resolvingDuration = false
   private pendingStart = 0
+  /** Decode-stall watchdog: detects "meant to be playing but making no
+   *  progress and out of buffered data" — i.e. a codec the built-in engine
+   *  can't decode (HEVC, 10-bit, Dolby/DTS) — so the store can fall back to
+   *  mpv. This is the case that otherwise just looks like the video froze. */
+  private wantPlaying = false
+  private stallInterval = 0
+  private lastProgressTime = 0
+  private lastProgressAt = 0
 
   constructor() {
     const v = document.createElement('video')
@@ -116,6 +124,8 @@ export class HtmlVideoEngine implements PlaybackEngine {
       }
     })
     v.addEventListener('ended', () => {
+      this.wantPlaying = false
+      this.disarmStallWatch()
       this.setStatus('ended')
       this.emit('ended')
     })
@@ -136,6 +146,8 @@ export class HtmlVideoEngine implements PlaybackEngine {
       }
     })
     v.addEventListener('error', () => {
+      this.wantPlaying = false
+      this.disarmStallWatch()
       const err = v.error
       let msg = 'This file could not be played.'
       if (err?.code === MediaError.MEDIA_ERR_DECODE) msg = 'decode'
@@ -158,6 +170,37 @@ export class HtmlVideoEngine implements PlaybackEngine {
   }
   private stopTimeLoop(): void {
     cancelAnimationFrame(this.rafId)
+  }
+
+  private armStallWatch(): void {
+    this.disarmStallWatch()
+    this.lastProgressTime = this.video.currentTime
+    this.lastProgressAt = Date.now()
+    this.stallInterval = window.setInterval(() => this.checkStall(), 2000)
+  }
+  private disarmStallWatch(): void {
+    if (this.stallInterval) {
+      clearInterval(this.stallInterval)
+      this.stallInterval = 0
+    }
+  }
+  private checkStall(): void {
+    const v = this.video
+    if (!this.wantPlaying || v.paused || v.ended) return
+    // Real progress since last tick → healthy; reset the baseline.
+    if (v.currentTime > this.lastProgressTime + 0.25) {
+      this.lastProgressTime = v.currentTime
+      this.lastProgressAt = Date.now()
+      return
+    }
+    // Meant to be playing, but time is frozen and there's no buffered data to
+    // decode into. On a local file that means the codec itself can't advance.
+    if (Date.now() - this.lastProgressAt > 7000 && v.readyState < v.HAVE_FUTURE_DATA) {
+      this.disarmStallWatch()
+      this.wantPlaying = false
+      this.setStatus('error')
+      this.emit('error', 'stall')
+    }
   }
 
   private emitBuffered(): void {
@@ -310,12 +353,16 @@ export class HtmlVideoEngine implements PlaybackEngine {
     setVideoSource(v, src)
     v.load()
     if (opts?.autoplay !== false) {
+      this.wantPlaying = true
+      this.armStallWatch()
       try {
         this.ensureAudioGraph()
         void this.ctx?.resume()
         await v.play()
       } catch {
         // Autoplay rejected (browser preview without gesture) — stay paused
+        this.wantPlaying = false
+        this.disarmStallWatch()
         this.setStatus('paused')
       }
     }
@@ -324,9 +371,17 @@ export class HtmlVideoEngine implements PlaybackEngine {
   play(): void {
     this.ensureAudioGraph()
     void this.ctx?.resume()
-    void this.video.play().catch(() => this.setStatus('paused'))
+    this.wantPlaying = true
+    this.armStallWatch()
+    void this.video.play().catch(() => {
+      this.wantPlaying = false
+      this.disarmStallWatch()
+      this.setStatus('paused')
+    })
   }
   pause(): void {
+    this.wantPlaying = false
+    this.disarmStallWatch()
     this.video.pause()
   }
   seek(seconds: number): void {
@@ -401,6 +456,8 @@ export class HtmlVideoEngine implements PlaybackEngine {
     return q ? { dropped: q.droppedVideoFrames, total: q.totalVideoFrames } : null
   }
   destroy(): void {
+    this.wantPlaying = false
+    this.disarmStallWatch()
     this.stopTimeLoop()
     this.resizeObs?.disconnect()
     this.resizeObs = null

@@ -508,6 +508,11 @@ export function SettingsPage(): ReactNode {
               </Button>
             </div>
           </Row>
+          {mpvAvailable && (
+            <Row query={q} label="Always use mpv engine" desc="Route every file through mpv, not just the ones the built-in engine can't play. Best if most of your library is HEVC, 10-bit, or has Dolby/DTS audio. Lumen already falls back to mpv automatically when the built-in engine can't decode a file.">
+              <Switch ariaLabel="Always use mpv engine" checked={!!s.video.preferMpv} onChange={(v) => patch({ video: { preferMpv: v } })} />
+            </Row>
+          )}
         </Section>
 
         <Section id="audio" label="Audio" icon={<AudioLines size={16} />}>

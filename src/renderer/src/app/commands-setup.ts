@@ -65,6 +65,11 @@ export function setupCommands(): void {
     { id: 'playback.screenshot', title: 'Save screenshot', category: 'Playback', when: inPlayer, run: () => void player().screenshot() },
     { id: 'playback.pip', title: 'Picture in picture', category: 'Playback', when: inPlayer, run: () => player().togglePip() },
     { id: 'playback.miniPlayer', title: 'Toggle mini player', category: 'Playback', when: inPlayer, run: () => ui().toggleMiniMode() },
+    {
+      id: 'playback.playInMpv', title: 'Play in mpv engine', category: 'Playback',
+      when: () => inPlayer() && player().mpvAvailable && player().mpvMode !== 'playing',
+      run: () => player().playInMpv()
+    },
     { id: 'playback.close', title: 'Close player', category: 'Playback', when: inPlayer, run: () => player().close() },
 
     // ── Subtitles ───────────────────────────────────────────────────────────
