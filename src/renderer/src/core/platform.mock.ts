@@ -204,6 +204,9 @@ export function createMockLumen(): LumenApi {
     mpv: {
       detect: async () => null,
       locate: async () => null,
+      hasWinget: async () => false,
+      install: async () => ({ ok: false, reason: 'no-winget' }),
+      onInstallProgress: () => () => {},
       play: async () => {},
       playPause: () => {},
       seek: () => {},

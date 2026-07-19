@@ -8,6 +8,7 @@ import type { DeepPartial } from '@shared/lumen-api'
 import { pathGuard, mediaUrl } from './protocol'
 import { setMiniMode } from './window'
 import { MpvManager } from './mpv/manager'
+import { hasWinget, installMpvViaWinget } from './mpv/install'
 
 export interface IpcDeps {
   win: BrowserWindow
@@ -57,6 +58,16 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.on('mpv:set-audio-track', (_e, id: number) => mpv.setAudioTrack(id))
   ipcMain.on('mpv:set-sub-track', (_e, id: number | 'no') => mpv.setSubTrack(id))
   ipcMain.on('mpv:frame-step', (_e, dir: 1 | -1) => mpv.frameStep(dir))
+  ipcMain.handle('mpv:has-winget', () => hasWinget())
+  ipcMain.handle('mpv:install', async () => {
+    const outcome = await installMpvViaWinget((line) => {
+      if (!win().isDestroyed()) win().webContents.send('mpv:install-progress', line)
+    })
+    // Source of truth: did mpv actually land on disk? (winget returns non-zero
+    // when the package was already present, which is still "ready".)
+    const path = mpv.refresh()
+    return { ok: !!path, path, reason: path ? undefined : outcome.reason ?? 'failed' }
+  })
   ipcMain.handle('mpv:screenshot', async (_e, suggestedName: string) => {
     const res = await dialog.showSaveDialog(win(), {
       title: 'Save screenshot',

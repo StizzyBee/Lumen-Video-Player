@@ -72,8 +72,14 @@ interface PlayerStore {
   /** 'off' = built-in engine, 'playing' = mpv window active, 'needed' = mpv missing */
   mpvMode: 'off' | 'playing' | 'needed'
   mpvTracks: MpvTracks
+  /** True while a winget install of mpv is running */
+  mpvInstalling: boolean
+  /** Recent status lines from an in-progress install (shown to the user) */
+  mpvInstallLog: string[]
   detectMpv(): Promise<void>
   locateMpv(): Promise<void>
+  /** One-click install mpv via winget (falls back to the download page) */
+  installMpv(): Promise<void>
   setMpvAudioTrack(id: number): void
   setMpvSubTrack(id: number | 'no'): void
 }
@@ -209,6 +215,8 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
   mpvAvailable: false,
   mpvMode: 'off',
   mpvTracks: { audio: [], sub: [] },
+  mpvInstalling: false,
+  mpvInstallLog: [],
 
   setMpvAudioTrack(id) {
     platform.mpv.setAudioTrack(id)
@@ -259,6 +267,44 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
       // retry the current file if we were blocked on it
       const s = get()
       if (s.mpvMode === 'needed' && s.item) s.openItem(s.item, { queue: s.queue })
+    }
+  },
+
+  async installMpv() {
+    if (get().mpvInstalling) return
+    // No winget → we can't install for them; send them to the official page.
+    const hasWinget = await platform.mpv.hasWinget()
+    if (!hasWinget) {
+      useUi.getState().toast(
+        { kind: 'warn', title: 'Automatic install needs Windows Package Manager', desc: 'Opening mpv.io so you can install it manually.' },
+        4500
+      )
+      window.open('https://mpv.io/installation/', '_blank')
+      return
+    }
+    set({ mpvInstalling: true, mpvInstallLog: ['Starting Windows Package Manager…'] })
+    const unsub = platform.mpv.onInstallProgress((line) => {
+      set((s) => ({ mpvInstallLog: [...s.mpvInstallLog, line].slice(-5) }))
+    })
+    try {
+      const res = await platform.mpv.install()
+      unsub()
+      set({ mpvInstalling: false, mpvInstallLog: [] })
+      if (res.ok) {
+        await get().detectMpv()
+        useUi.getState().toast({ kind: 'ok', title: 'mpv installed', desc: 'Playing your file now.' }, 3500)
+        const s = get()
+        if (s.item && (s.mpvMode === 'needed' || s.status === 'error')) get().playInMpv()
+      } else {
+        useUi.getState().toast(
+          { kind: 'warn', title: "Couldn't install mpv automatically", desc: 'Install it from mpv.io, then use “Locate existing mpv”.' },
+          5000
+        )
+      }
+    } catch {
+      unsub()
+      set({ mpvInstalling: false })
+      useUi.getState().toast({ kind: 'warn', title: 'mpv install failed', desc: 'Try installing it manually from mpv.io.' }, 5000)
     }
   },
 

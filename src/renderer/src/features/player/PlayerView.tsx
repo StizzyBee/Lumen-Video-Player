@@ -273,15 +273,29 @@ export function PlayerView(): ReactNode {
               </>
             )}
           </div>
-          <div className={styles.bigStateActions}>
-            <Button variant="primary" icon={<Download size={16} />} onClick={() => window.open('https://mpv.io/installation/', '_blank')}>
-              Get mpv
-            </Button>
-            <Button variant="subtle" icon={<FolderOpen size={16} />} onClick={() => void p.locateMpv()}>
-              Locate mpv.exe…
-            </Button>
-            <Button variant="ghost" onClick={() => p.close()}>Back</Button>
-          </div>
+          {p.mpvInstalling ? (
+            <div className={styles.installBox}>
+              <div className={styles.installSpinner} />
+              <div className={styles.installTitle}>Installing mpv…</div>
+              <div className={styles.installLog}>{p.mpvInstallLog[p.mpvInstallLog.length - 1] ?? 'Starting…'}</div>
+            </div>
+          ) : (
+            <>
+              <div className={styles.installNote}>
+                Lumen can install <strong>mpv.net</strong> for you (about 40&nbsp;MB) using Windows Package Manager. You&apos;ll
+                see the progress here — nothing installs without you.
+              </div>
+              <div className={styles.bigStateActions}>
+                <Button variant="primary" icon={<Download size={16} />} onClick={() => void p.installMpv()}>
+                  Install mpv automatically
+                </Button>
+                <Button variant="subtle" icon={<FolderOpen size={16} />} onClick={() => void p.locateMpv()}>
+                  Locate existing mpv…
+                </Button>
+                <Button variant="ghost" onClick={() => p.close()}>Back</Button>
+              </div>
+            </>
+          )}
         </div>
       )}
 

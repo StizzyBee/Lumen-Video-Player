@@ -356,6 +356,8 @@ export function SettingsPage(): ReactNode {
   const applyVideo = usePlayer((st) => st.applyVideoSettings)
   const mpvAvailable = usePlayer((st) => st.mpvAvailable)
   const locateMpv = usePlayer((st) => st.locateMpv)
+  const installMpv = usePlayer((st) => st.installMpv)
+  const mpvInstalling = usePlayer((st) => st.mpvInstalling)
   const [query, setQuery] = useState('')
   const [fontMenu, setFontMenu] = useState<MenuAnchor | null>(null)
   const [version, setVersion] = useState('')
@@ -495,16 +497,18 @@ export function SettingsPage(): ReactNode {
               </Button>
             </div>
           )}
-          <Row query={q} label="mpv engine (MKV, AVI, HEVC, HDR)" desc={mpvAvailable ? 'Detected — MKV, AVI, WMV, FLV and other formats play through mpv with true HDR tone-mapping.' : 'Not found. Install the free mpv player, then locate it here to unlock MKV/AVI/WMV and full HDR. HEVC in MP4/MOV already plays in the built-in engine.'}>
+          <Row query={q} label="mpv engine (MKV, AVI, HEVC, HDR)" desc={mpvAvailable ? 'Detected — MKV, AVI, WMV, FLV and HEVC/Dolby/DTS content plays through mpv with true HDR tone-mapping.' : '“Install mpv” downloads the free mpv.net (~40 MB) via Windows Package Manager to unlock MKV/AVI/WMV, HEVC and Dolby/DTS audio, and full HDR. Already have it? Use “Locate”.'}>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <span className={styles.sliderValue} style={{ minWidth: 0, color: mpvAvailable ? 'var(--ok)' : 'var(--text-3)' }}>
-                {mpvAvailable ? 'Ready' : 'Not set up'}
+                {mpvInstalling ? 'Installing…' : mpvAvailable ? 'Ready' : 'Not set up'}
               </span>
               {!mpvAvailable && (
-                <Button size="sm" variant="subtle" onClick={() => window.open('https://mpv.io/installation/', '_blank')}>Get mpv</Button>
+                <Button size="sm" variant="accentSoft" disabled={mpvInstalling} onClick={() => void installMpv()}>
+                  {mpvInstalling ? 'Installing…' : 'Install mpv'}
+                </Button>
               )}
-              <Button size="sm" variant={mpvAvailable ? 'ghost' : 'accentSoft'} onClick={() => void locateMpv()}>
-                {mpvAvailable ? 'Change…' : 'Locate mpv.exe…'}
+              <Button size="sm" variant={mpvAvailable ? 'ghost' : 'subtle'} disabled={mpvInstalling} onClick={() => void locateMpv()}>
+                {mpvAvailable ? 'Change…' : 'Locate…'}
               </Button>
             </div>
           </Row>

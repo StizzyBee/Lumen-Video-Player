@@ -74,6 +74,12 @@ export interface LumenApi {
     detect(): Promise<string | null>
     /** Open a picker to locate mpv.exe manually; persists + returns the path */
     locate(): Promise<string | null>
+    /** Windows Package Manager present? Gates the one-click install offer. */
+    hasWinget(): Promise<boolean>
+    /** Install mpv.net via winget; resolves with the detected path on success */
+    install(): Promise<{ ok: boolean; path?: string | null; reason?: string }>
+    /** Live status lines while an install runs (for transparency) */
+    onInstallProgress(cb: (line: string) => void): Unsubscribe
     /** Launch mpv to play a file; resolves once the process is spawned */
     play(path: string, opts: { hdr: 'auto' | 'vivid' | 'off'; hwdec: boolean; volume: number; startAt?: number }): Promise<void>
     playPause(paused: boolean): void
