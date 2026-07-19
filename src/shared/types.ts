@@ -80,6 +80,8 @@ export interface VideoSettings {
   mpvPath?: string
   /** Route every file through mpv (for libraries that are mostly HEVC/10-bit/DTS) */
   preferMpv?: boolean
+  /** Render mpv's video inside Lumen's window instead of mpv's own (experimental) */
+  mpvEmbed?: boolean
 }
 
 export interface MpvTrack {
@@ -183,7 +185,8 @@ export const DEFAULT_SETTINGS: Settings = {
     cap: 'auto',
     hdr: 'auto',
     color: { brightness: 1, contrast: 1, saturation: 1, gamma: 1 },
-    preferMpv: false
+    preferMpv: false,
+    mpvEmbed: true
   },
   playback: {
     rememberPosition: true,

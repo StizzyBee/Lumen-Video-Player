@@ -1,7 +1,7 @@
 {
   "name": "lumen-player",
   "productName": "Lumen",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "A luminous home for your videos — a modern Windows video player.",
   "main": "out/main/index.js",
   "type": "module",

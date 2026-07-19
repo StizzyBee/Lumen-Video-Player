@@ -46,24 +46,30 @@ export class MpvManager {
     return this.proc !== null
   }
 
-  async load(filePath: string, opts: { hdr: HdrMode; hwdec: boolean; volume: number; startAt?: number }): Promise<void> {
+  async load(
+    filePath: string,
+    opts: { hdr: HdrMode; hwdec: boolean; volume: number; startAt?: number; wid?: number }
+  ): Promise<void> {
     const mpv = this.detect()
     if (!mpv) throw new Error('mpv-not-found')
     this.stop()
     this.pipeName = `\\\\.\\pipe\\lumen-mpv-${process.pid}-${Date.now()}`
+    // Embedded: render into Lumen's own child window (--wid), no mpv chrome —
+    // Lumen's controls drive it. Standalone: mpv's own window + built-in OSC.
+    const embed = typeof opts.wid === 'number' && opts.wid > 0
+    const windowArgs = embed
+      ? [`--wid=${opts.wid}`, '--no-osc', '--osd-level=0', '--no-input-default-bindings', '--input-vo-keyboard=no']
+      : ['--force-window=yes', '--osc=yes', '--osd-bar=yes', '--title=Lumen — ${filename}']
     const args = [
       `--input-ipc-server=${this.pipeName}`,
-      '--force-window=yes',
       '--idle=once',
-      '--osc=yes',
-      '--osd-bar=yes',
       '--keep-open=yes',
-      '--title=Lumen — ${filename}',
       opts.hwdec ? '--hwdec=auto-safe' : '--hwdec=no',
       '--vo=gpu-next',
       ...toneMap[opts.hdr],
       `--volume=${Math.round(opts.volume * 100)}`,
       ...(opts.startAt && opts.startAt > 1 ? [`--start=${Math.floor(opts.startAt)}`] : []),
+      ...windowArgs,
       filePath
     ]
     this.proc = spawn(mpv, args, { windowsHide: false })

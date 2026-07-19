@@ -13,6 +13,19 @@
 }
 .surface video { width: 100%; height: 100%; object-fit: contain; }
 
+/* Region mpv's embedded surface window is sized to — inset to clear Lumen's
+   top bar (Back button) and bottom control bar. The native mpv window paints
+   here, on top of the DOM, so the chrome in the strips above/below stays live. */
+.mpvSurface {
+  position: absolute;
+  top: 92px;
+  bottom: 100px;
+  left: 0;
+  right: 0;
+  background: #000;
+  z-index: 1;
+}
+
 /* ── Top bar ── */
 /* The gradient strip itself is click-through (clicks reach the video), only
    real controls are interactive, and window-drag lives on the title strip —

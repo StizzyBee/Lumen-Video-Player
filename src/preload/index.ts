@@ -56,6 +56,7 @@ const api: LumenApi = {
     install: () => ipcRenderer.invoke('mpv:install'),
     onInstallProgress: (cb) => on('mpv:install-progress', cb),
     play: (path, opts) => ipcRenderer.invoke('mpv:play', path, opts),
+    setSurfaceRect: (rect) => ipcRenderer.send('mpv:surface-rect', rect),
     playPause: (paused) => ipcRenderer.send('mpv:play-pause', paused),
     seek: (sec) => ipcRenderer.send('mpv:seek', sec),
     setRate: (rate) => ipcRenderer.send('mpv:set-rate', rate),

@@ -24,6 +24,8 @@ export function PlayerView(): ReactNode {
   const ui = useUi()
   const settings = useSettings((s) => s.settings)
   const patchSettings = useSettings((s) => s.patch)
+  // mpv rendering inside Lumen's own window (vs mpv's separate window)
+  const embeddedMpv = p.mpvMode === 'playing' && p.mpvEmbedded
 
   const [chromeVisible, setChromeVisible] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -31,6 +33,7 @@ export function PlayerView(): ReactNode {
   const [flash, setFlash] = useState<'play' | 'pause' | null>(null)
 
   const hostRef = useRef<HTMLDivElement | null>(null)
+  const mpvSurfaceRef = useRef<HTMLDivElement | null>(null)
   const lastActivity = useRef(Date.now())
   const hudTimer = useRef(0)
   const holdTimer = useRef(0)
@@ -68,6 +71,35 @@ export function PlayerView(): ReactNode {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [poke])
+
+  // Embedded mpv: continuously report the video region so main can size mpv's
+  // surface window to sit exactly inside Lumen's player UI.
+  useEffect(() => {
+    if (!embeddedMpv) return
+    const el = mpvSurfaceRef.current
+    if (!el) return
+    const send = (): void => {
+      const r = el.getBoundingClientRect()
+      platform.mpv.setSurfaceRect({
+        x: r.left,
+        y: r.top,
+        width: r.width,
+        height: r.height,
+        innerWidth: window.innerWidth
+      })
+    }
+    send()
+    const ro = new ResizeObserver(send)
+    ro.observe(el)
+    window.addEventListener('resize', send)
+    // Safety net for zoom/fullscreen settling that observers can miss
+    const t = window.setInterval(send, 500)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', send)
+      window.clearInterval(t)
+    }
+  }, [embeddedMpv])
 
   // ── HUD helper ──
   const showHud = useCallback((icon: ReactNode, text: string) => {
@@ -199,7 +231,7 @@ export function PlayerView(): ReactNode {
   }
 
   const mini = ui.miniMode
-  const showChrome = chromeVisible || p.status === 'paused' || p.status === 'ended' || p.status === 'error' || p.status === 'idle' || p.status === 'loading'
+  const showChrome = chromeVisible || embeddedMpv || p.status === 'paused' || p.status === 'ended' || p.status === 'error' || p.status === 'idle' || p.status === 'loading'
   // A file in one of Chromium's own containers that still needs mpv is a codec
   // problem (HEVC/10-bit/DTS), not a container problem — say so.
   const codecNeedsMpv = HTML5_CONTAINERS.has((p.item?.ext ?? '').toLowerCase())
@@ -239,8 +271,11 @@ export function PlayerView(): ReactNode {
       <div className={styles.surface} ref={attach} />
       {p.mpvMode === 'off' && <SubtitleLayer />}
 
-      {/* mpv engine: video plays in mpv's own GPU window */}
-      {p.mpvMode === 'playing' && (
+      {/* mpv embedded inside Lumen: the video region mpv renders into */}
+      {embeddedMpv && <div className={styles.mpvSurface} ref={mpvSurfaceRef} />}
+
+      {/* mpv engine (separate window fallback): video plays in mpv's own window */}
+      {p.mpvMode === 'playing' && !p.mpvEmbedded && (
         <div className={styles.mpvPanel}>
           <div className={styles.mpvBadge}>mpv engine</div>
           <MonitorPlay size={44} strokeWidth={1.5} />

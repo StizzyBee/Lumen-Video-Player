@@ -24,8 +24,66 @@ export function registerIpc(deps: IpcDeps): void {
   const win = (): BrowserWindow => deps.win
 
   // ── mpv sidecar engine (beta) ──────────────────────────────────────────────
+  // Embedded-video surface: a frameless, non-focusable child window that mpv
+  // renders INTO (--wid), positioned by the renderer so the video sits inside
+  // Lumen's own player UI instead of mpv's separate window.
+  type SurfaceRect = { x: number; y: number; width: number; height: number; innerWidth: number }
+  let surface: BrowserWindow | null = null
+  let lastRect: SurfaceRect | null = null
+
+  const destroySurface = (): void => {
+    if (surface && !surface.isDestroyed()) surface.destroy()
+    surface = null
+    lastRect = null
+  }
+  const createSurface = (): number | null => {
+    destroySurface()
+    try {
+      const parent = win()
+      surface = new BrowserWindow({
+        parent,
+        frame: false,
+        resizable: false,
+        movable: false,
+        minimizable: false,
+        maximizable: false,
+        skipTaskbar: true,
+        focusable: false,
+        hasShadow: false,
+        backgroundColor: '#000000',
+        show: false
+      })
+      const b = parent.getContentBounds()
+      surface.setBounds({ x: b.x, y: b.y + 42, width: b.width, height: Math.max(1, b.height - 42) })
+      surface.showInactive()
+      return Number(surface.getNativeWindowHandle().readBigUInt64LE())
+    } catch {
+      destroySurface()
+      return null
+    }
+  }
+  const positionSurface = (rect: SurfaceRect): void => {
+    lastRect = rect
+    if (!surface || surface.isDestroyed()) return
+    const b = win().getContentBounds()
+    const scale = rect.innerWidth > 0 ? b.width / rect.innerWidth : 1
+    surface.setBounds({
+      x: Math.round(b.x + rect.x * scale),
+      y: Math.round(b.y + rect.y * scale),
+      width: Math.max(1, Math.round(rect.width * scale)),
+      height: Math.max(1, Math.round(rect.height * scale))
+    })
+  }
+  const reposition = (): void => {
+    if (lastRect) positionSurface(lastRect)
+  }
+  deps.win.on('move', reposition)
+  deps.win.on('resize', reposition)
+
   const mpv = new MpvManager(
     (channel, payload) => {
+      // mpv quit/exit → tear the embedded surface down with it
+      if (channel === 'mpv:event' && (payload as { type?: string })?.type === 'exit') destroySurface()
       if (!win().isDestroyed()) win().webContents.send(channel, payload)
     },
     () => ({
@@ -49,7 +107,32 @@ export function registerIpc(deps: IpcDeps): void {
     settings.update((s) => ({ ...s, video: { ...s.video, mpvPath: chosen } }))
     return mpv.refresh()
   })
-  ipcMain.handle('mpv:play', (_e, path: string, opts) => mpv.load(path, opts))
+  ipcMain.handle('mpv:play', async (_e, path: string, opts) => {
+    let wid: number | undefined
+    if (opts?.embed) {
+      const h = createSurface()
+      if (h) wid = h
+    }
+    try {
+      await mpv.load(path, { ...opts, wid })
+      if (wid !== undefined) {
+        // Embedding steals focus to mpv's surface; give it back to Lumen so the
+        // keyboard shortcuts and control bar stay live.
+        const w = win()
+        if (!w.isDestroyed()) {
+          w.focus()
+          w.webContents.focus()
+        }
+      }
+      return { embedded: wid !== undefined }
+    } catch (e) {
+      destroySurface()
+      throw e
+    }
+  })
+  ipcMain.on('mpv:surface-rect', (_e, rect: SurfaceRect) => {
+    if (rect && typeof rect.width === 'number') positionSurface(rect)
+  })
   ipcMain.on('mpv:play-pause', (_e, paused: boolean) => (paused ? mpv.pause() : mpv.play()))
   ipcMain.on('mpv:seek', (_e, sec: number) => mpv.seek(sec))
   ipcMain.on('mpv:set-rate', (_e, r: number) => mpv.setRate(r))
@@ -99,7 +182,10 @@ export function registerIpc(deps: IpcDeps): void {
     }
     return null
   })
-  ipcMain.on('mpv:stop', () => mpv.stop())
+  ipcMain.on('mpv:stop', () => {
+    mpv.stop()
+    destroySurface()
+  })
 
   // ── window ────────────────────────────────────────────────────────────────
   ipcMain.on('win:minimize', () => win().minimize())

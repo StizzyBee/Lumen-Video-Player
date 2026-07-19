@@ -71,6 +71,8 @@ interface PlayerStore {
   mpvAvailable: boolean
   /** 'off' = built-in engine, 'playing' = mpv window active, 'needed' = mpv missing */
   mpvMode: 'off' | 'playing' | 'needed'
+  /** True when mpv is rendering inside Lumen's window (vs its own window) */
+  mpvEmbedded: boolean
   mpvTracks: MpvTracks
   /** True while a winget install of mpv is running */
   mpvInstalling: boolean
@@ -214,6 +216,7 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
   fit: 'contain',
   mpvAvailable: false,
   mpvMode: 'off',
+  mpvEmbedded: false,
   mpvTracks: { audio: [], sub: [] },
   mpvInstalling: false,
   mpvInstallLog: [],
@@ -351,16 +354,21 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
         status: choice === 'mpv' ? 'loading' : 'error',
         errorKind: choice === 'mpv' ? null : 'needmpv',
         mpvMode: choice === 'mpv' ? 'playing' : 'needed',
+        mpvEmbedded: false,
         mpvTracks: { audio: [], sub: [] }
       })
       useUi.getState().navigate({ name: 'player' })
       if (choice === 'mpv') {
-        void platform.mpv.play(item.path, {
-          hdr: settings.video.hdr,
-          hwdec: settings.playback.hardwareDecoding,
-          volume: settings.audio.muted ? 0 : settings.audio.volume,
-          startAt
-        })
+        void platform.mpv
+          .play(item.path, {
+            hdr: settings.video.hdr,
+            hwdec: settings.playback.hardwareDecoding,
+            volume: settings.audio.muted ? 0 : settings.audio.volume,
+            startAt,
+            embed: settings.video.mpvEmbed !== false
+          })
+          .then((res) => set({ mpvEmbedded: !!res?.embedded }))
+          .catch(() => set({ mpvEmbedded: false }))
         platform.app.setPlaying(true)
         useLibrary.getState().patchItem(item.id, { lastPlayedAt: Date.now(), playCount: item.playCount + 1 })
         // periodic resume-position save (time/duration are mirrored from mpv)
@@ -454,7 +462,8 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
       errorKind: null,
       ab: { a: null, b: null },
       pipActive: false,
-      mpvMode: 'off'
+      mpvMode: 'off',
+      mpvEmbedded: false
     })
     useUi.getState().closePlayerView()
   },

@@ -517,6 +517,11 @@ export function SettingsPage(): ReactNode {
               <Switch ariaLabel="Always use mpv engine" checked={!!s.video.preferMpv} onChange={(v) => patch({ video: { preferMpv: v } })} />
             </Row>
           )}
+          {mpvAvailable && (
+            <Row query={q} label="Play mpv video inside Lumen (experimental)" desc="Render mpv's video inside Lumen's own window with Lumen's controls, instead of mpv's separate window. If the video looks misplaced or black, turn this off to use mpv's own window.">
+              <Switch ariaLabel="Play mpv video inside Lumen" checked={s.video.mpvEmbed !== false} onChange={(v) => patch({ video: { mpvEmbed: v } })} />
+            </Row>
+          )}
         </Section>
 
         <Section id="audio" label="Audio" icon={<AudioLines size={16} />}>

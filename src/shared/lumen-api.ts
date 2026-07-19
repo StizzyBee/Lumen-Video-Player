@@ -80,8 +80,13 @@ export interface LumenApi {
     install(): Promise<{ ok: boolean; path?: string | null; reason?: string }>
     /** Live status lines while an install runs (for transparency) */
     onInstallProgress(cb: (line: string) => void): Unsubscribe
-    /** Launch mpv to play a file; resolves once the process is spawned */
-    play(path: string, opts: { hdr: 'auto' | 'vivid' | 'off'; hwdec: boolean; volume: number; startAt?: number }): Promise<void>
+    /** Launch mpv to play a file; resolves with whether it embedded into Lumen's window */
+    play(
+      path: string,
+      opts: { hdr: 'auto' | 'vivid' | 'off'; hwdec: boolean; volume: number; startAt?: number; embed?: boolean }
+    ): Promise<{ embedded: boolean }>
+    /** Position the embedded-video surface to match a region of the renderer (screen px derived in main) */
+    setSurfaceRect(rect: { x: number; y: number; width: number; height: number; innerWidth: number }): void
     playPause(paused: boolean): void
     seek(sec: number): void
     setRate(rate: number): void
