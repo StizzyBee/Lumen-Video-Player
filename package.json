@@ -1,7 +1,7 @@
 {
   "name": "lumen-player",
   "productName": "Lumen",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "A luminous home for your videos — a modern Windows video player.",
   "main": "out/main/index.js",
   "type": "module",
@@ -40,6 +40,7 @@
   "build": {
     "appId": "app.lumen.player",
     "productName": "Lumen",
+    "artifactName": "${productName}-Setup-${version}.${ext}",
     "directories": {
       "output": "release"
     },
