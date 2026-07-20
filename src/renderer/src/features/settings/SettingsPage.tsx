@@ -465,7 +465,7 @@ export function SettingsPage(): ReactNode {
               ))}
             </div>
           </Row>
-          <Row query={q} label="HDR / tone mapping" desc="Vivid grades toward richer color; SDR tones highlights down. Native HDR passthrough arrives with the libmpv engine.">
+          <Row query={q} label="HDR / tone mapping" desc="Auto passes real HDR through to HDR displays (mpv engine) and leaves the picture untouched on the built-in engine. Vivid grades toward richer color; SDR tones highlights down.">
             <div style={{ display: 'flex', gap: 6 }}>
               {(['auto', 'vivid', 'off'] as const).map((m) => (
                 <Button key={m} size="sm" variant={s.video.hdr === m ? 'accentSoft' : 'ghost'} onClick={() => { patch({ video: { hdr: m } }); applyVideo() }}>
@@ -497,7 +497,7 @@ export function SettingsPage(): ReactNode {
               </Button>
             </div>
           )}
-          <Row query={q} label="mpv engine (MKV, AVI, HEVC, HDR)" desc={mpvAvailable ? 'Detected — MKV, AVI, WMV, FLV and HEVC/Dolby/DTS content plays through mpv with true HDR tone-mapping.' : '“Install mpv” downloads the free mpv.net (~40 MB) via Windows Package Manager to unlock MKV/AVI/WMV, HEVC and Dolby/DTS audio, and full HDR. Already have it? Use “Locate”.'}>
+          <Row query={q} label="mpv engine (MKV, AVI, HEVC, HDR)" desc={mpvAvailable ? 'Detected — MKV, AVI, WMV, FLV and HEVC/Dolby/DTS content plays embedded inside Lumen with true HDR passthrough on HDR displays.' : '“Install mpv” downloads the free mpv player (~60 MB) via Windows Package Manager to unlock MKV/AVI/WMV, HEVC and Dolby/DTS audio, and real HDR — all rendered inside Lumen’s own window. Already have it? Use “Locate”.'}>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <span className={styles.sliderValue} style={{ minWidth: 0, color: mpvAvailable ? 'var(--ok)' : 'var(--text-3)' }}>
                 {mpvInstalling ? 'Installing…' : mpvAvailable ? 'Ready' : 'Not set up'}
@@ -515,11 +515,6 @@ export function SettingsPage(): ReactNode {
           {mpvAvailable && (
             <Row query={q} label="Always use mpv engine" desc="Route every file through mpv, not just the ones the built-in engine can't play. Best if most of your library is HEVC, 10-bit, or has Dolby/DTS audio. Lumen already falls back to mpv automatically when the built-in engine can't decode a file.">
               <Switch ariaLabel="Always use mpv engine" checked={!!s.video.preferMpv} onChange={(v) => patch({ video: { preferMpv: v } })} />
-            </Row>
-          )}
-          {mpvAvailable && (
-            <Row query={q} label="Play mpv video inside Lumen (experimental)" desc="Render mpv's video inside Lumen's own window with Lumen's controls, instead of mpv's separate window. If the video looks misplaced or black, turn this off to use mpv's own window.">
-              <Switch ariaLabel="Play mpv video inside Lumen" checked={s.video.mpvEmbed !== false} onChange={(v) => patch({ video: { mpvEmbed: v } })} />
             </Row>
           )}
         </Section>

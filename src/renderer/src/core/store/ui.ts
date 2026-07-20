@@ -32,6 +32,8 @@ interface UiStore {
   lastBrowseView: View
   paletteOpen: boolean
   paletteSeed: string
+  /** "Open URL" dialog: stream or download a video from the web */
+  urlDialogOpen: boolean
   playlistDrawerOpen: boolean
   fullscreen: boolean
   miniMode: boolean
@@ -43,6 +45,7 @@ interface UiStore {
   navigate(view: View): void
   closePlayerView(): void
   setPaletteOpen(open: boolean, seed?: string): void
+  setUrlDialog(open: boolean): void
   setPlaylistDrawer(open: boolean): void
   setFullscreen(on: boolean): void
   toggleMiniMode(): void
@@ -63,6 +66,7 @@ export const useUi = create<UiStore>((set, get) => ({
   lastBrowseView: { name: 'home' },
   paletteOpen: false,
   paletteSeed: '',
+  urlDialogOpen: false,
   playlistDrawerOpen: false,
   fullscreen: false,
   miniMode: false,
@@ -90,6 +94,9 @@ export const useUi = create<UiStore>((set, get) => ({
 
   setPaletteOpen(open, seed = '') {
     set({ paletteOpen: open, paletteSeed: seed })
+  },
+  setUrlDialog(open) {
+    set({ urlDialogOpen: open })
   },
   setPlaylistDrawer(open) {
     set({ playlistDrawerOpen: open })

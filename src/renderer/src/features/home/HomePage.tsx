@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from 'react'
-import { Play, RotateCcw, FolderPlus, FilePlus, Clapperboard } from 'lucide-react'
+import { Play, RotateCcw, FolderPlus, FilePlus, Clapperboard, Link2 } from 'lucide-react'
 import { useLibrary, continueWatching, recentlyAdded, recentlyPlayed, pinned, favorites } from '@/core/store/library'
 import { usePlayer } from '@/core/store/player'
 import { platform } from '@/core/platform'
@@ -109,6 +109,9 @@ export function HomePage(): ReactNode {
               </Button>
               <Button variant="subtle" icon={<FilePlus size={17} />} onClick={() => executeCommand('app.openFile')}>
                 Open a file
+              </Button>
+              <Button variant="subtle" icon={<Link2 size={17} />} onClick={() => executeCommand('app.openUrl')}>
+                Open a URL
               </Button>
             </>
           }

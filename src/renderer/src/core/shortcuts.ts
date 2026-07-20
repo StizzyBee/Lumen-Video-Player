@@ -37,6 +37,7 @@ export const DEFAULT_KEYMAP: Record<string, string> = {
   'subtitles.delayMinus': 'Z',
   'subtitles.delayPlus': 'X',
   'app.openFile': 'Ctrl+O',
+  'app.openUrl': 'Ctrl+U',
   'app.palette': 'Ctrl+Shift+P',
   'app.search': 'Ctrl+K',
   'app.searchAlt': 'Ctrl+F',

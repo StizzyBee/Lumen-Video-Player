@@ -13,9 +13,11 @@
 }
 .surface video { width: 100%; height: 100%; object-fit: contain; }
 
-/* Region mpv's embedded surface window is sized to — inset to clear Lumen's
-   top bar (Back button) and bottom control bar. The native mpv window paints
-   here, on top of the DOM, so the chrome in the strips above/below stays live. */
+/* Region mpv's embedded surface window is sized to. While the chrome is
+   visible it insets to clear Lumen's top bar and bottom control bar (the
+   native mpv window paints on top of the DOM, so overlapped controls would be
+   unreachable); once the chrome auto-hides it expands full-bleed — a real
+   fullscreen picture. Main watches the system cursor to revive the chrome. */
 .mpvSurface {
   position: absolute;
   top: 92px;
@@ -24,6 +26,15 @@
   right: 0;
   background: #000;
   z-index: 1;
+}
+/* Mini player: no top bar, compact control strip */
+.mpvSurfaceMini {
+  top: 42px;
+  bottom: 88px;
+}
+.chromeHidden .mpvSurface {
+  top: 0;
+  bottom: 0;
 }
 
 /* ── Top bar ── */

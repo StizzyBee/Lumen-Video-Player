@@ -15,6 +15,8 @@ export interface MpvResponse {
   data?: unknown
   event?: string
   name?: string
+  /** end-file events carry why playback ended: 'eof' | 'stop' | 'quit' | … */
+  reason?: string
 }
 
 /** Serialize a command to a single newline-terminated JSON line. */

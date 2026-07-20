@@ -97,7 +97,7 @@ interface PlaybackEngine {
 ```
 
 - **`HtmlVideoEngine` (shipped, M1)** — Chromium `<video>` + WebAudio graph (gain boost → 10-band EQ → compressor "normalize"). Hardware-decoded H.264/VP9/AV1/HEVC*, containers MP4/WebM/MOV/M4V (+ Matroska where codecs allow). PiP, frame capture, playbackRate 0.06–16.
-- **`MpvEngine` (planned, M4)** — libmpv child-window rendering behind a transparent UI layer; unlocks MKV/AVI/FLV/WMV/MPEG, every codec, embedded tracks, HDR passthrough, audio device/delay control. Engine selection per-file with graceful fallback: if `HtmlVideoEngine.canPlay(item)` is false and mpv is installed → mpv; else prompt.
+- **mpv sidecar engine (shipped, M4)** — a detected (or one-click winget-installed) `mpv.exe` renders into a frameless child window embedded inside Lumen's own window (`--wid`), driven over JSON IPC (`src/main/mpv/`); unlocks MKV/AVI/FLV/WMV/MPEG, every codec, embedded tracks, and true HDR passthrough on HDR displays (`gpu-next` + `target-colorspace-hint`), with the HDR mode + color grade applied live via `set_property` (`grade.ts` is the single mapping for launch args and runtime updates). Plain mpv only — mpv.net ignores `--wid` and falls back to its own window. Engine selection per-file with graceful fallback: if `HtmlVideoEngine.canPlay(item)` is false and mpv is installed → mpv; else prompt to install.
 
 The registry (`core/engine/registry.ts`) makes engines a plugin point from day one.
 

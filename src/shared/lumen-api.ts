@@ -1,4 +1,6 @@
 import type {
+  ColorAdjust,
+  DownloadProgress,
   LibraryItem,
   LibraryState,
   Playlist,
@@ -76,17 +78,25 @@ export interface LumenApi {
     locate(): Promise<string | null>
     /** Windows Package Manager present? Gates the one-click install offer. */
     hasWinget(): Promise<boolean>
-    /** Install mpv.net via winget; resolves with the detected path on success */
+    /** Install mpv via winget; resolves with the detected path on success */
     install(): Promise<{ ok: boolean; path?: string | null; reason?: string }>
     /** Live status lines while an install runs (for transparency) */
     onInstallProgress(cb: (line: string) => void): Unsubscribe
     /** Launch mpv to play a file; resolves with whether it embedded into Lumen's window */
     play(
       path: string,
-      opts: { hdr: 'auto' | 'vivid' | 'off'; hwdec: boolean; volume: number; startAt?: number; embed?: boolean }
+      opts: {
+        hdr: 'auto' | 'vivid' | 'off'
+        color?: ColorAdjust
+        hwdec: boolean
+        volume: number
+        startAt?: number
+      }
     ): Promise<{ embedded: boolean }>
     /** Position the embedded-video surface to match a region of the renderer (screen px derived in main) */
     setSurfaceRect(rect: { x: number; y: number; width: number; height: number; innerWidth: number }): void
+    /** Apply HDR mode + color adjustments to the running mpv instance */
+    setGrade(color: ColorAdjust, hdr: 'auto' | 'vivid' | 'off'): void
     playPause(paused: boolean): void
     seek(sec: number): void
     setRate(rate: number): void
@@ -99,6 +109,19 @@ export interface LumenApi {
     screenshot(suggestedName: string): Promise<string | null>
     stop(): void
     onEvent(cb: (e: { type: string; name?: string; data?: unknown; message?: string }) => void): Unsubscribe
+  }
+  /** yt-dlp powered downloads: pull a video from a website into the library. */
+  downloads: {
+    /** Resolve installed tool paths (yt-dlp + the ffmpeg it needs for 1080p+ merges) */
+    detect(): Promise<{ ytdlp: string | null; ffmpeg: string | null }>
+    hasWinget(): Promise<boolean>
+    /** One-click install of yt-dlp + FFmpeg via winget */
+    install(): Promise<{ ok: boolean; reason?: string }>
+    onInstallProgress(cb: (line: string) => void): Unsubscribe
+    /** Start a download; progress arrives via onProgress until done/error */
+    start(url: string): Promise<{ id: string }>
+    cancel(id: string): void
+    onProgress(cb: (e: DownloadProgress) => void): Unsubscribe
   }
   shell: {
     showInFolder(path: string): void

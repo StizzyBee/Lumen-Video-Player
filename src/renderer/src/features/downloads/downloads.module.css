@@ -1,0 +1,90 @@
+/* ── Open URL dialog ── */
+.urlBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.urlField {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--bg1);
+  box-shadow: inset 0 0 0 1px var(--stroke);
+  color: var(--text-2);
+}
+.urlField:focus-within {
+  box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-soft);
+}
+.urlField input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-body);
+}
+.urlHint {
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  line-height: 1.45;
+}
+
+/* ── Downloads tray (bottom-right, above toasts feel, below dialogs) ── */
+.tray {
+  position: fixed;
+  right: var(--sp-4);
+  bottom: calc(var(--sp-4) + 64px); /* clear the toast stack */
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: min(340px, calc(100vw - 32px));
+  pointer-events: none;
+}
+.card {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--r-lg);
+  background: var(--acrylic);
+  box-shadow: var(--shadow-2), inset 0 0 0 1px var(--stroke);
+  pointer-events: auto;
+}
+.cardIcon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-full);
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.cardBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cardTitle {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cardStatus {
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+}
+.cardActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}

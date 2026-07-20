@@ -216,10 +216,22 @@ export function createMockLumen(): LumenApi {
       setMuted: () => {},
       setAudioTrack: () => {},
       setSubTrack: () => {},
+      setGrade: () => {},
       frameStep: () => {},
       screenshot: async () => null,
       stop: () => {},
       onEvent: () => () => {}
+    },
+    downloads: {
+      detect: async () => ({ ytdlp: null, ffmpeg: null }),
+      hasWinget: async () => false,
+      install: async () => ({ ok: false, reason: 'no-winget' }),
+      onInstallProgress: () => () => {},
+      start: async () => {
+        throw new Error('downloads need the desktop app')
+      },
+      cancel: () => {},
+      onProgress: () => () => {}
     },
     shell: {
       showInFolder: () => {},

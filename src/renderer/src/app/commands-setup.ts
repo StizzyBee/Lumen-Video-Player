@@ -98,6 +98,7 @@ export function setupCommands(): void {
         if (paths?.length) void player().openPaths(paths)
       }
     },
+    { id: 'app.openUrl', title: 'Open URL — stream or download…', category: 'App', run: () => ui().setUrlDialog(true) },
     { id: 'app.addFolder', title: 'Add folder to library…', category: 'Library', run: () => void useLibrary.getState().addFolder() },
     { id: 'app.rescan', title: 'Rescan library folders', category: 'Library', run: () => void useLibrary.getState().rescan() },
     { id: 'app.palette', title: 'Command palette', category: 'App', run: () => ui().setPaletteOpen(true, '>') },

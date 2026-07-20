@@ -9,6 +9,7 @@ import { useSettings } from '@/core/store/settings'
 import { useUi } from '@/core/store/ui'
 import { platform, isDesktop } from '@/core/platform'
 import { HTML5_CONTAINERS } from '@/core/engine/select'
+import { isStreamItem } from '@/core/streams'
 import { IconButton } from '@/components/ui/IconButton'
 import { Button } from '@/components/ui/Button'
 import { ControlsBar } from './ControlsBar'
@@ -71,6 +72,15 @@ export function PlayerView(): ReactNode {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [poke])
+
+  // Embedded mpv: mouse over the native surface never reaches the DOM, so
+  // main watches the system cursor and pings us to revive the controls.
+  useEffect(() => {
+    if (!embeddedMpv) return
+    return platform.mpv.onEvent((e) => {
+      if (e.type === 'cursor') poke()
+    })
+  }, [embeddedMpv, poke])
 
   // Embedded mpv: continuously report the video region so main can size mpv's
   // surface window to sit exactly inside Lumen's player UI.
@@ -231,7 +241,7 @@ export function PlayerView(): ReactNode {
   }
 
   const mini = ui.miniMode
-  const showChrome = chromeVisible || embeddedMpv || p.status === 'paused' || p.status === 'ended' || p.status === 'error' || p.status === 'idle' || p.status === 'loading'
+  const showChrome = chromeVisible || p.status === 'paused' || p.status === 'ended' || p.status === 'error' || p.status === 'idle' || p.status === 'loading'
   // A file in one of Chromium's own containers that still needs mpv is a codec
   // problem (HEVC/10-bit/DTS), not a container problem — say so.
   const codecNeedsMpv = HTML5_CONTAINERS.has((p.item?.ext ?? '').toLowerCase())
@@ -272,17 +282,20 @@ export function PlayerView(): ReactNode {
       {p.mpvMode === 'off' && <SubtitleLayer />}
 
       {/* mpv embedded inside Lumen: the video region mpv renders into */}
-      {embeddedMpv && <div className={styles.mpvSurface} ref={mpvSurfaceRef} />}
+      {embeddedMpv && (
+        <div className={`${styles.mpvSurface} ${mini ? styles.mpvSurfaceMini : ''}`} ref={mpvSurfaceRef} />
+      )}
 
-      {/* mpv engine (separate window fallback): video plays in mpv's own window */}
+      {/* Last-resort fallback (mpv.net or embed failure): video in mpv's own window */}
       {p.mpvMode === 'playing' && !p.mpvEmbedded && (
         <div className={styles.mpvPanel}>
           <div className={styles.mpvBadge}>mpv engine</div>
           <MonitorPlay size={44} strokeWidth={1.5} />
-          <div className={styles.mpvTitle}>Playing in the mpv engine</div>
+          <div className={styles.mpvTitle}>Playing in a separate mpv window</div>
           <div className={styles.mpvDesc}>
-            {p.item?.fileName} is decoding in mpv's dedicated window with full HDR tone-mapping. Transport controls
-            below and mpv's own overlay both work.
+            {p.item?.fileName} is decoding in mpv's own window with full HDR tone-mapping — this copy of mpv can't
+            render inside Lumen. Install plain mpv from Settings → Video (one click) to play everything embedded
+            here. Lumen's transport controls below still work.
           </div>
         </div>
       )}
@@ -295,7 +308,12 @@ export function PlayerView(): ReactNode {
             {codecNeedsMpv ? 'This file needs the mpv engine to decode' : 'This file needs the mpv engine'}
           </div>
           <div className={styles.mpvDesc}>
-            {codecNeedsMpv ? (
+            {p.item && isStreamItem(p.item) ? (
+              <>
+                Streaming from websites plays through mpv — it resolves the page with yt-dlp and renders right inside
+                Lumen. Install mpv, then open the URL again.
+              </>
+            ) : codecNeedsMpv ? (
               <>
                 This {p.item?.ext.toUpperCase()} uses a codec the built-in engine can&apos;t decode here — most likely
                 HEVC/H.265, 10-bit video, or Dolby/DTS audio. mpv decodes all of them in software, with true HDR
@@ -317,8 +335,8 @@ export function PlayerView(): ReactNode {
           ) : (
             <>
               <div className={styles.installNote}>
-                Lumen can install <strong>mpv.net</strong> for you (about 40&nbsp;MB) using Windows Package Manager. You&apos;ll
-                see the progress here — nothing installs without you.
+                Lumen can install <strong>mpv</strong> for you (about 60&nbsp;MB) using Windows Package Manager — it
+                plays right inside Lumen&apos;s window. You&apos;ll see the progress here — nothing installs without you.
               </div>
               <div className={styles.bigStateActions}>
                 <Button variant="primary" icon={<Download size={16} />} onClick={() => void p.installMpv()}>

@@ -239,12 +239,23 @@ export function ControlsBar({ onMenuOpenChange }: { onMenuOpenChange: (open: boo
 
   const videoEntries: MenuEntry[] = [
     { type: 'header', label: 'Resolution' },
-    ...resOptions.map((o) => ({
-      id: `res-${o.value}`,
-      label: o.isSource ? `${o.label} · source` : o.label,
-      checked: video.cap === o.value,
-      onSelect: () => setCap(o.value)
-    })),
+    // mpv always renders at the source's full quality; the cap is a
+    // html5-engine downscale option, so don't offer dead choices here.
+    ...(onMpv
+      ? [
+          {
+            id: 'res-native',
+            label: p.dimensions ? `${p.dimensions.height}p · source (native)` : 'Native · source quality',
+            checked: true,
+            onSelect: () => {}
+          }
+        ]
+      : resOptions.map((o) => ({
+          id: `res-${o.value}`,
+          label: o.isSource ? `${o.label} · source` : o.label,
+          checked: video.cap === o.value,
+          onSelect: () => setCap(o.value)
+        }))),
     { type: 'separator' },
     { type: 'header', label: 'HDR / tone' },
     ...([
@@ -387,9 +398,11 @@ export function ControlsBar({ onMenuOpenChange }: { onMenuOpenChange: (open: boo
               <ListVideo size={19} />
             </IconButton>
 
-            <IconButton onVideo label="Picture in picture" kbd="Alt+P" active={p.pipActive} onClick={() => p.togglePip()}>
-              <PictureInPicture2 size={19} />
-            </IconButton>
+            {!onMpv && (
+              <IconButton onVideo label="Picture in picture" kbd="Alt+P" active={p.pipActive} onClick={() => p.togglePip()}>
+                <PictureInPicture2 size={19} />
+              </IconButton>
+            )}
 
             <IconButton onVideo label="More" onClick={openMenu('more')}>
               <MoreHorizontal size={19} />

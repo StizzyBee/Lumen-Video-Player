@@ -64,10 +64,20 @@ const api: LumenApi = {
     setMuted: (m) => ipcRenderer.send('mpv:set-muted', m),
     setAudioTrack: (id) => ipcRenderer.send('mpv:set-audio-track', id),
     setSubTrack: (id) => ipcRenderer.send('mpv:set-sub-track', id),
+    setGrade: (color, hdr) => ipcRenderer.send('mpv:set-grade', color, hdr),
     frameStep: (dir) => ipcRenderer.send('mpv:frame-step', dir),
     screenshot: (name) => ipcRenderer.invoke('mpv:screenshot', name),
     stop: () => ipcRenderer.send('mpv:stop'),
     onEvent: (cb) => on('mpv:event', cb)
+  },
+  downloads: {
+    detect: () => ipcRenderer.invoke('dl:detect'),
+    hasWinget: () => ipcRenderer.invoke('mpv:has-winget'),
+    install: () => ipcRenderer.invoke('dl:install'),
+    onInstallProgress: (cb) => on('dl:install-progress', cb),
+    start: (url) => ipcRenderer.invoke('dl:start', url),
+    cancel: (id) => ipcRenderer.send('dl:cancel', id),
+    onProgress: (cb) => on('dl:progress', cb)
   },
   shell: {
     showInFolder: (path) => ipcRenderer.send('shell:show-in-folder', path),

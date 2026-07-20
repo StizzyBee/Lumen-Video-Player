@@ -9,6 +9,7 @@ import { toggleBookmark } from '@/core/bookmarks'
 import { selectEngine } from '@/core/engine/select'
 import { fallbackForHtmlFailure } from '@/core/engine/fallback'
 import { decideEndAction } from '@/core/playback-end'
+import { isStreamItem, makeStreamItem, normalizeStreamUrl } from '@/core/streams'
 import type { MpvTracks } from '@shared/types'
 import { useSettings } from './settings'
 import { useLibrary } from './library'
@@ -35,12 +36,16 @@ interface PlayerStore {
   statsVisible: boolean
   pipActive: boolean
   fit: VideoFit
+  /** True when the playing file carries HDR video (mpv sig-peak > 1); null = unknown */
+  hdrContent: boolean | null
 
   attachHost(el: HTMLElement | null): void
   openItem(item: LibraryItem, opts?: { queue?: string[]; startOver?: boolean; forceMpv?: boolean }): void
   /** Re-open the current item in the mpv engine (manual override / auto-fallback) */
   playInMpv(): void
   openPaths(paths: string[]): Promise<void>
+  /** Stream a remote URL (direct file → built-in engine; site page → mpv+yt-dlp) */
+  openUrl(url: string): void
   close(): void
   togglePlay(): void
   play(): void
@@ -91,6 +96,11 @@ let host: HTMLElement | null = null
 let unsubs: Array<() => void> = []
 let persistTimer: number | null = null
 let mpvSubscribed = false
+// mpv reports width/height as separate observed properties; collect both
+// before publishing dimensions. Whether mpv is paused (as opposed to stalled
+// on cache) so buffering can resolve to the right status.
+let mpvDims = { w: 0, h: 0 }
+let mpvPausedProp = false
 
 function ensureEngine(get: () => PlayerStore, set: (p: Partial<PlayerStore>) => void): PlaybackEngine {
   if (engine) return engine
@@ -119,7 +129,7 @@ function ensureEngine(get: () => PlayerStore, set: (p: Partial<PlayerStore>) => 
     e.on('dimensions', (dimensions) => {
       set({ dimensions })
       const item = get().item
-      if (item && (!item.width || item.width !== dimensions.width)) {
+      if (item && !isStreamItem(item) && (!item.width || item.width !== dimensions.width)) {
         useLibrary.getState().patchItem(item.id, { width: dimensions.width, height: dimensions.height })
       }
     }),
@@ -153,7 +163,7 @@ function ensureEngine(get: () => PlayerStore, set: (p: Partial<PlayerStore>) => 
 
 function persistPosition(s: PlayerStore): void {
   const { item, time, duration } = s
-  if (!item) return
+  if (!item || isStreamItem(item)) return
   const { rememberPosition, resumeTailSec } = useSettings.getState().settings.playback
   if (!rememberPosition) return
   const pos = positionToSave(time, duration || item.durationSec, resumeTailSec)
@@ -214,6 +224,7 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
   statsVisible: false,
   pipActive: false,
   fit: 'contain',
+  hdrContent: null,
   mpvAvailable: false,
   mpvMode: 'off',
   mpvEmbedded: false,
@@ -251,10 +262,34 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
               set({ time: s.ab.a })
             } else set({ time: t })
           } else if (e.name === 'duration' && typeof e.data === 'number') set({ duration: e.data })
-          else if (e.name === 'pause') set({ status: e.data ? 'paused' : 'playing' })
-          else if (e.name === 'eof-reached' && e.data) runEndAction(get)
+          else if (e.name === 'pause') {
+            mpvPausedProp = !!e.data
+            set({ status: e.data ? 'paused' : 'playing' })
+          } else if (e.name === 'width' || e.name === 'height') {
+            if (typeof e.data === 'number' && e.data > 0) {
+              if (e.name === 'width') mpvDims.w = e.data
+              else mpvDims.h = e.data
+              if (mpvDims.w && mpvDims.h) {
+                set({ dimensions: { width: mpvDims.w, height: mpvDims.h } })
+                const item = s.item
+                if (item && !isStreamItem(item) && (item.width !== mpvDims.w || item.height !== mpvDims.h)) {
+                  useLibrary.getState().patchItem(item.id, { width: mpvDims.w, height: mpvDims.h })
+                }
+              }
+            }
+          } else if (e.name === 'video-params/sig-peak') {
+            // The real HDR signal: sig-peak > 1 means the video carries HDR
+            if (typeof e.data === 'number') set({ hdrContent: e.data > 1 })
+          } else if (e.name === 'paused-for-cache') {
+            if (e.data) set({ status: 'buffering' })
+            else if (s.status === 'buffering') set({ status: mpvPausedProp ? 'paused' : 'playing' })
+          } else if (e.name === 'eof-reached' && e.data) runEndAction(get)
         } else if (e.type === 'ready') {
           set({ status: 'playing' })
+          // Launch args cover the initial grade; re-assert so mid-session
+          // settings edits and per-file tweaks always match the UI state.
+          s.applyVideoSettings()
+          s.applyAudioSettings()
         } else if (e.type === 'error') {
           set({ status: 'error', errorKind: 'mpv' })
         }
@@ -339,6 +374,8 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
         engine.destroy()
         engine = null
       }
+      mpvDims = { w: 0, h: 0 }
+      mpvPausedProp = false
       set({
         item,
         queue,
@@ -350,6 +387,7 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
         activeSubId: null,
         ab: { a: null, b: null },
         pipActive: false,
+        hdrContent: null,
         dimensions: item.width && item.height ? { width: item.width, height: item.height } : null,
         status: choice === 'mpv' ? 'loading' : 'error',
         errorKind: choice === 'mpv' ? null : 'needmpv',
@@ -362,15 +400,17 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
         void platform.mpv
           .play(item.path, {
             hdr: settings.video.hdr,
+            color: settings.video.color,
             hwdec: settings.playback.hardwareDecoding,
             volume: settings.audio.muted ? 0 : settings.audio.volume,
-            startAt,
-            embed: settings.video.mpvEmbed !== false
+            startAt
           })
           .then((res) => set({ mpvEmbedded: !!res?.embedded }))
           .catch(() => set({ mpvEmbedded: false }))
         platform.app.setPlaying(true)
-        useLibrary.getState().patchItem(item.id, { lastPlayedAt: Date.now(), playCount: item.playCount + 1 })
+        if (!isStreamItem(item)) {
+          useLibrary.getState().patchItem(item.id, { lastPlayedAt: Date.now(), playCount: item.playCount + 1 })
+        }
         // periodic resume-position save (time/duration are mirrored from mpv)
         if (persistTimer) window.clearInterval(persistTimer)
         persistTimer = window.setInterval(() => {
@@ -396,19 +436,24 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
       activeSubId: null,
       subDelayMs: settings.subtitles.delayMs,
       ab: { a: null, b: null },
-      pipActive: false
+      pipActive: false,
+      hdrContent: null
     })
     useUi.getState().navigate({ name: 'player' })
 
-    void e.load(platform.media.url(item.path), { startAt, autoplay: true })
+    // Streams play their URL directly; local files go through lumen://
+    const src = isStreamItem(item) ? item.path : platform.media.url(item.path)
+    void e.load(src, { startAt, autoplay: true })
     e.setRate(settings.playback.defaultRate)
     get().applyAudioSettings()
     get().applyVideoSettings()
 
-    useLibrary.getState().patchItem(item.id, {
-      lastPlayedAt: Date.now(),
-      playCount: item.playCount + 1
-    })
+    if (!isStreamItem(item)) {
+      useLibrary.getState().patchItem(item.id, {
+        lastPlayedAt: Date.now(),
+        playCount: item.playCount + 1
+      })
+    }
 
     if (settings.subtitles.autoLoad) {
       for (const sub of item.subtitles.slice(0, 6)) void get().addSubtitleFromPath(sub)
@@ -440,6 +485,15 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
     get().openItem(items[0], { queue: items.map((i) => i.id) })
   },
 
+  openUrl(url) {
+    const normalized = normalizeStreamUrl(url)
+    if (!normalized) {
+      useUi.getState().toast({ kind: 'warn', title: "That doesn't look like a video URL", desc: 'Paste an http(s) link to a video file or page.' })
+      return
+    }
+    get().openItem(makeStreamItem(normalized), { queue: [] })
+  },
+
   close() {
     persistPosition(get())
     if (get().mpvMode === 'playing') platform.mpv.stop()
@@ -462,6 +516,7 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
       errorKind: null,
       ab: { a: null, b: null },
       pipActive: false,
+      hdrContent: null,
       mpvMode: 'off',
       mpvEmbedded: false
     })
@@ -622,6 +677,10 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
   toggleBookmarkHere() {
     const { item, time } = get()
     if (!item) return
+    if (isStreamItem(item)) {
+      useUi.getState().toast({ kind: 'info', title: 'Bookmarks need a library file', desc: 'Download the video to bookmark moments in it.' }, 2500)
+      return
+    }
     const live = useLibrary.getState().byId.get(item.id)
     const { list, added } = toggleBookmark(live?.bookmarks, time)
     useLibrary.getState().patchItem(item.id, { bookmarks: list })
@@ -675,8 +734,14 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
   },
 
   applyVideoSettings() {
-    if (!engine) return
     const v = useSettings.getState().settings.video
+    if (get().mpvMode === 'playing') {
+      // HDR mode + color grade apply live over mpv IPC; the resolution cap is
+      // a html5-engine downscale — mpv always renders at source quality.
+      platform.mpv.setGrade(v.color, v.hdr)
+      return
+    }
+    if (!engine) return
     engine.setResolutionCap(v.cap)
     engine.setVideoGrade(v.color, v.hdr)
   },

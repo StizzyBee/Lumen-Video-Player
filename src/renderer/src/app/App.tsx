@@ -9,9 +9,12 @@ import { PlaylistsPage } from '@/features/playlists/PlaylistsPage'
 import { SettingsPage } from '@/features/settings/SettingsPage'
 import { PlayerView } from '@/features/player/PlayerView'
 import { CommandPalette } from '@/features/palette/CommandPalette'
+import { UrlDialog } from '@/features/downloads/UrlDialog'
+import { DownloadsTray } from '@/features/downloads/DownloadsTray'
 import { useSettings } from '@/core/store/settings'
 import { useLibrary } from '@/core/store/library'
 import { usePlayer } from '@/core/store/player'
+import { useDownloads } from '@/core/store/downloads'
 import { useUi } from '@/core/store/ui'
 import { setupCommands } from './commands-setup'
 import { executeCommand } from '@/core/commands'
@@ -30,6 +33,7 @@ function boot(): void {
   setupCommands()
   void useSettings.getState().init()
   void usePlayer.getState().detectMpv()
+  void useDownloads.getState().init()
   void useLibrary.getState().init().then(() => kickThumbnailQueue())
   useLibrary.subscribe((s, prev) => {
     if (s.items !== prev.items) kickThumbnailQueue()
@@ -129,6 +133,8 @@ export function App(): ReactNode {
       <AnimatePresence>{playerOpen && <PlayerView />}</AnimatePresence>
 
       <CommandPalette />
+      <UrlDialog />
+      <DownloadsTray />
       <ContextMenuHost />
       <ConfirmHost />
       <ToastHost />

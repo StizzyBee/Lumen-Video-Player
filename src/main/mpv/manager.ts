@@ -1,22 +1,17 @@
 // mpv sidecar manager (main process). Detects an installed mpv, launches it
 // for containers/codecs the built-in engine can't handle (MKV/AVI/HEVC/HDR…),
 // and bridges JSON IPC so Lumen's controls drive playback and receive live
-// position/duration/eof updates. mpv renders in its own GPU window (robust,
-// full HDR tone-mapping); Lumen shows a "playing in mpv" panel and transport.
+// position/duration/eof updates. The video renders into Lumen's own window
+// (--wid embedding) with true HDR passthrough via gpu-next.
 import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import net from 'node:net'
 import { encodeCommand, parseMessages, cmd, OBSERVED, parseTrackList, type MpvResponse } from './protocol'
-import { mpvCandidates, type LocateEnv } from './locate'
-import type { HdrMode } from '@shared/types'
+import { mpvCandidates, supportsEmbed, type LocateEnv } from './locate'
+import { gradeArgs, gradeProps } from './grade'
+import { DEFAULT_SETTINGS, type ColorAdjust, type HdrMode } from '@shared/types'
 
 type Send = (channel: string, payload: unknown) => void
-
-const toneMap: Record<HdrMode, string[]> = {
-  auto: ['--target-colorspace-hint=yes', '--tone-mapping=auto'],
-  vivid: ['--target-colorspace-hint=yes', '--tone-mapping=bt.2446a', '--saturation=6'],
-  off: ['--tone-mapping=hable', '--target-peak=100']
-}
 
 export class MpvManager {
   private proc: ChildProcess | null = null
@@ -46,16 +41,32 @@ export class MpvManager {
     return this.proc !== null
   }
 
+  /** Can the detected executable render into Lumen's window? (mpv.net can't) */
+  canEmbed(): boolean {
+    const p = this.detect()
+    return !!p && supportsEmbed(p)
+  }
+
   async load(
     filePath: string,
-    opts: { hdr: HdrMode; hwdec: boolean; volume: number; startAt?: number; wid?: number }
+    opts: {
+      hdr: HdrMode
+      color?: ColorAdjust
+      hwdec: boolean
+      volume: number
+      startAt?: number
+      wid?: number
+      /** yt-dlp path so mpv's ytdl hook can resolve website URLs to streams */
+      ytdlpPath?: string
+    }
   ): Promise<void> {
     const mpv = this.detect()
     if (!mpv) throw new Error('mpv-not-found')
     this.stop()
     this.pipeName = `\\\\.\\pipe\\lumen-mpv-${process.pid}-${Date.now()}`
     // Embedded: render into Lumen's own child window (--wid), no mpv chrome —
-    // Lumen's controls drive it. Standalone: mpv's own window + built-in OSC.
+    // Lumen's controls drive it. Standalone: mpv's own window + built-in OSC
+    // (last-resort fallback only, e.g. mpv.net which ignores --wid).
     const embed = typeof opts.wid === 'number' && opts.wid > 0
     const windowArgs = embed
       ? [`--wid=${opts.wid}`, '--no-osc', '--osd-level=0', '--no-input-default-bindings', '--input-vo-keyboard=no']
@@ -66,32 +77,49 @@ export class MpvManager {
       '--keep-open=yes',
       opts.hwdec ? '--hwdec=auto-safe' : '--hwdec=no',
       '--vo=gpu-next',
-      ...toneMap[opts.hdr],
+      ...gradeArgs(opts.color ?? DEFAULT_SETTINGS.video.color, opts.hdr),
       `--volume=${Math.round(opts.volume * 100)}`,
       ...(opts.startAt && opts.startAt > 1 ? [`--start=${Math.floor(opts.startAt)}`] : []),
+      ...(opts.ytdlpPath ? [`--script-opts=ytdl_hook-ytdl_path=${opts.ytdlpPath}`] : []),
       ...windowArgs,
+      '--',
       filePath
     ]
-    this.proc = spawn(mpv, args, { windowsHide: false })
-    this.proc.on('exit', () => {
+    const proc = spawn(mpv, args, { windowsHide: false })
+    this.proc = proc
+    // Guard on process identity: when a new load replaces this proc (cleanup
+    // nulls this.proc before killing), its late exit must not tear down the
+    // NEW session — that would close the player mid queue-advance.
+    proc.on('exit', () => {
+      if (this.proc !== proc) return
       this.send('mpv:event', { type: 'exit' })
       this.cleanup()
     })
-    this.proc.on('error', () => {
+    proc.on('error', () => {
+      if (this.proc !== proc) return
       this.send('mpv:event', { type: 'error', message: 'mpv failed to start' })
       this.cleanup()
     })
     await this.connect()
   }
 
+  /** Apply HDR mode + color adjustments live (same mapping as launch args). */
+  applyGrade(color: ColorAdjust, hdr: HdrMode): void {
+    for (const [name, value] of Object.entries(gradeProps(color, hdr))) {
+      this.write(cmd.setProp(name, value))
+    }
+  }
+
   private async connect(attempt = 0): Promise<void> {
+    // A new load() rotates the pipe name; abandon retry loops from older loads
+    const pipe = this.pipeName
     if (attempt > 40) {
       this.send('mpv:event', { type: 'error', message: 'mpv IPC did not come up' })
       return
     }
     await new Promise((r) => setTimeout(r, 100))
-    if (!this.proc) return
-    const sock = net.connect(this.pipeName)
+    if (!this.proc || this.pipeName !== pipe) return
+    const sock = net.connect(pipe)
     sock.on('connect', () => {
       this.sock = sock
       for (const o of OBSERVED) this.write(cmd.observe(o.id, o.name))
@@ -124,7 +152,9 @@ export class MpvManager {
       this.write(['get_property', 'track-list'])
       this.trackReqPending = true
     } else if (m.event === 'end-file') {
-      this.send('mpv:event', { type: 'prop', name: 'eof-reached', data: true })
+      // Only a real end-of-file counts; quit/stop/replace must not trigger
+      // the end-of-video action (auto-next would fire while shutting down).
+      if (m.reason === 'eof') this.send('mpv:event', { type: 'prop', name: 'eof-reached', data: true })
     } else if (m.request_id && this.trackReqPending && Array.isArray(m.data)) {
       this.trackReqPending = false
       this.send('mpv:event', { type: 'tracks', data: parseTrackList(m.data) })

@@ -80,8 +80,6 @@ export interface VideoSettings {
   mpvPath?: string
   /** Route every file through mpv (for libraries that are mostly HEVC/10-bit/DTS) */
   preferMpv?: boolean
-  /** Render mpv's video inside Lumen's window instead of mpv's own (experimental) */
-  mpvEmbed?: boolean
 }
 
 export interface MpvTrack {
@@ -161,6 +159,18 @@ export interface OpenedFilePayload {
   path: string
 }
 
+/** Live event for a yt-dlp download job (main → renderer). */
+export interface DownloadProgress {
+  id: string
+  url: string
+  kind: 'progress' | 'status' | 'done' | 'error' | 'cancelled'
+  percent?: number
+  text?: string
+  path?: string
+  /** The library item registered for the finished file */
+  item?: LibraryItem
+}
+
 export const VIDEO_EXTENSIONS = [
   'mp4', 'm4v', 'mkv', 'webm', 'mov', 'avi', 'wmv', 'flv', 'mpg', 'mpeg', 'ts', 'm2ts', 'ogv', '3gp'
 ] as const
@@ -185,8 +195,7 @@ export const DEFAULT_SETTINGS: Settings = {
     cap: 'auto',
     hdr: 'auto',
     color: { brightness: 1, contrast: 1, saturation: 1, gamma: 1 },
-    preferMpv: false,
-    mpvEmbed: true
+    preferMpv: false
   },
   playback: {
     rememberPosition: true,

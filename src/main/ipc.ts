@@ -1,14 +1,16 @@
-import { ipcMain, dialog, shell, app, powerSaveBlocker, BrowserWindow } from 'electron'
+import { ipcMain, dialog, shell, app, powerSaveBlocker, screen, BrowserWindow } from 'electron'
 import { promises as fsp } from 'node:fs'
 import { join } from 'node:path'
 import type { Library } from './library'
 import type { JsonStore } from './store'
-import { mergeSettings, type Playlist, type Settings } from '@shared/types'
+import { mergeSettings, type ColorAdjust, type DownloadProgress, type HdrMode, type Playlist, type Settings } from '@shared/types'
 import type { DeepPartial } from '@shared/lumen-api'
 import { pathGuard, mediaUrl } from './protocol'
 import { setMiniMode } from './window'
 import { MpvManager } from './mpv/manager'
 import { hasWinget, installMpvViaWinget } from './mpv/install'
+import { YtdlpManager } from './ytdlp/manager'
+import { wingetInstall } from './winget'
 
 export interface IpcDeps {
   win: BrowserWindow
@@ -30,8 +32,29 @@ export function registerIpc(deps: IpcDeps): void {
   type SurfaceRect = { x: number; y: number; width: number; height: number; innerWidth: number }
   let surface: BrowserWindow | null = null
   let lastRect: SurfaceRect | null = null
+  let cursorTimer: NodeJS.Timeout | null = null
+  let lastCursor = { x: -1, y: -1 }
+
+  // Mouse over the embedded native surface never reaches the DOM, so the
+  // renderer can't un-hide its controls from pointer events alone. Watch the
+  // system cursor while the surface exists and ping the renderer on movement.
+  const startCursorWatch = (): void => {
+    stopCursorWatch()
+    cursorTimer = setInterval(() => {
+      if (!surface || surface.isDestroyed()) return
+      const p = screen.getCursorScreenPoint()
+      const moved = Math.abs(p.x - lastCursor.x) > 2 || Math.abs(p.y - lastCursor.y) > 2
+      lastCursor = p
+      if (moved && !win().isDestroyed()) win().webContents.send('mpv:event', { type: 'cursor' })
+    }, 300)
+  }
+  const stopCursorWatch = (): void => {
+    if (cursorTimer) clearInterval(cursorTimer)
+    cursorTimer = null
+  }
 
   const destroySurface = (): void => {
+    stopCursorWatch()
     if (surface && !surface.isDestroyed()) surface.destroy()
     surface = null
     lastRect = null
@@ -56,6 +79,7 @@ export function registerIpc(deps: IpcDeps): void {
       const b = parent.getContentBounds()
       surface.setBounds({ x: b.x, y: b.y + 42, width: b.width, height: Math.max(1, b.height - 42) })
       surface.showInactive()
+      startCursorWatch()
       return Number(surface.getNativeWindowHandle().readBigUInt64LE())
     } catch {
       destroySurface()
@@ -108,13 +132,21 @@ export function registerIpc(deps: IpcDeps): void {
     return mpv.refresh()
   })
   ipcMain.handle('mpv:play', async (_e, path: string, opts) => {
+    // Local files must be inside the allowlist; http(s) URLs stream directly
+    // (mpv resolves site pages through yt-dlp when it's installed).
+    const isUrl = typeof path === 'string' && /^https?:\/\//i.test(path)
+    if (!isUrl && (typeof path !== 'string' || !pathGuard.isAllowed(path))) {
+      throw new Error('forbidden')
+    }
+    // Always embed when the engine can (--wid): video belongs inside Lumen's
+    // UI. Only mpv.net (which ignores --wid) falls back to its own window.
     let wid: number | undefined
-    if (opts?.embed) {
+    if (mpv.canEmbed()) {
       const h = createSurface()
       if (h) wid = h
     }
     try {
-      await mpv.load(path, { ...opts, wid })
+      await mpv.load(path, { ...opts, wid, ytdlpPath: isUrl ? ytdlp.detect().ytdlp ?? undefined : undefined })
       if (wid !== undefined) {
         // Embedding steals focus to mpv's surface; give it back to Lumen so the
         // keyboard shortcuts and control bar stay live.
@@ -140,6 +172,7 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.on('mpv:set-muted', (_e, m: boolean) => mpv.setMuted(m))
   ipcMain.on('mpv:set-audio-track', (_e, id: number) => mpv.setAudioTrack(id))
   ipcMain.on('mpv:set-sub-track', (_e, id: number | 'no') => mpv.setSubTrack(id))
+  ipcMain.on('mpv:set-grade', (_e, color: ColorAdjust, hdr: HdrMode) => mpv.applyGrade(color, hdr))
   ipcMain.on('mpv:frame-step', (_e, dir: 1 | -1) => mpv.frameStep(dir))
   ipcMain.handle('mpv:has-winget', () => hasWinget())
   ipcMain.handle('mpv:install', async () => {
@@ -185,6 +218,67 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.on('mpv:stop', () => {
     mpv.stop()
     destroySurface()
+  })
+
+  // ── yt-dlp downloads (pull a video from a website into the library) ───────
+  const ytdlp = new YtdlpManager(() => ({
+    pathEnv: process.env.PATH,
+    localAppData: process.env.LOCALAPPDATA,
+    programFiles: process.env['ProgramFiles']
+  }))
+  const downloadDir = join(app.getPath('videos'), 'Lumen Downloads')
+  const sendDl = (p: DownloadProgress): void => {
+    if (!win().isDestroyed()) win().webContents.send('dl:progress', p)
+  }
+  ipcMain.handle('dl:detect', () => ytdlp.detect(true))
+  ipcMain.handle('dl:install', async () => {
+    const progress = (line: string): void => {
+      if (!win().isDestroyed()) win().webContents.send('dl:install-progress', line)
+    }
+    // yt-dlp itself, plus the ffmpeg build it needs to merge 1080p+ streams.
+    await wingetInstall('yt-dlp.yt-dlp', progress)
+    await wingetInstall('yt-dlp.FFmpeg', progress)
+    // Source of truth: are the tools on disk now? (winget exit codes lie.)
+    const paths = ytdlp.refresh()
+    return { ok: !!paths.ytdlp, reason: paths.ytdlp ? undefined : 'failed' }
+  })
+  ipcMain.handle('dl:start', async (_e, rawUrl: string) => {
+    const url = typeof rawUrl === 'string' ? rawUrl.trim() : ''
+    if (!/^https?:\/\//i.test(url)) throw new Error('bad-url')
+    await fsp.mkdir(downloadDir, { recursive: true })
+    const id = ytdlp.download(url, downloadDir, (ev) => {
+      if (ev.type === 'done') {
+        // Register the finished file as a library item (allowlists its folder,
+        // discovers sidecars, broadcasts library:changed) before reporting.
+        void library.addPaths([ev.path]).then((items) => {
+          sendDl({ id, url, kind: 'done', path: ev.path, item: items[0] })
+        })
+      } else if (ev.type === 'progress') {
+        sendDl({ id, url, kind: 'progress', percent: ev.percent })
+      } else if (ev.type === 'status') {
+        sendDl({ id, url, kind: 'status', text: ev.text })
+      } else if (ev.type === 'error') {
+        sendDl({ id, url, kind: 'error', text: ev.message })
+      } else {
+        sendDl({ id, url, kind: 'cancelled' })
+      }
+    })
+    return { id }
+  })
+  ipcMain.on('dl:cancel', (_e, id: string) => {
+    if (typeof id === 'string') ytdlp.cancel(id)
+  })
+
+  // Never leave a headless mpv playing or downloads running after Lumen exits
+  app.on('before-quit', () => {
+    mpv.stop()
+    destroySurface()
+    ytdlp.stopAll()
+  })
+  deps.win.on('closed', () => {
+    mpv.stop()
+    destroySurface()
+    ytdlp.stopAll()
   })
 
   // ── window ────────────────────────────────────────────────────────────────
