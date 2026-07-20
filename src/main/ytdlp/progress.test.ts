@@ -23,6 +23,10 @@ describe('parseYtdlpLine', () => {
       kind: 'dest',
       path: 'C:\\v\\out.mp4'
     })
+    expect(parseYtdlpLine('__LUMEN_DEST__:C:\\v\\final.m2ts')).toEqual({
+      kind: 'dest',
+      path: 'C:\\v\\final.m2ts'
+    })
   })
 
   it('surfaces errors', () => {

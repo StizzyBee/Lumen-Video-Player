@@ -3,7 +3,15 @@ import { promises as fsp } from 'node:fs'
 import { join } from 'node:path'
 import type { Library } from './library'
 import type { JsonStore } from './store'
-import { mergeSettings, type ColorAdjust, type DownloadProgress, type HdrMode, type Playlist, type Settings } from '@shared/types'
+import {
+  mergeSettings,
+  VIDEO_EXTENSIONS,
+  type ColorAdjust,
+  type DownloadProgress,
+  type HdrMode,
+  type Playlist,
+  type Settings
+} from '@shared/types'
 import type { DeepPartial } from '@shared/lumen-api'
 import { pathGuard, mediaUrl } from './protocol'
 import { setMiniMode } from './window'
@@ -322,7 +330,7 @@ export function registerIpc(deps: IpcDeps): void {
       title: 'Open video files',
       properties: ['openFile', 'multiSelections', 'dontAddToRecent'],
       filters: [
-        { name: 'Videos', extensions: ['mp4', 'm4v', 'mkv', 'webm', 'mov', 'avi', 'wmv', 'flv', 'mpg', 'mpeg', 'ts', 'ogv'] },
+        { name: 'Videos', extensions: [...VIDEO_EXTENSIONS] },
         { name: 'All files', extensions: ['*'] }
       ]
     })

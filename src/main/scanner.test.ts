@@ -19,6 +19,7 @@ beforeAll(() => {
   writeFileSync(join(root, 'Movies', 'tiny.mp4'), Buffer.alloc(100)) // stub — skipped
   writeFileSync(join(root, 'Movies', '.hidden', 'secret.mp4'), BIG) // hidden dir file IS scanned (dir not dot-checked for files) — actually dir is dot-prefixed and skipped
   writeFileSync(join(root, 'clip.webm'), BIG)
+  writeFileSync(join(root, 'capture.m2ts'), BIG)
 })
 
 afterAll(() => rmSync(root, { recursive: true, force: true }))
@@ -27,7 +28,7 @@ describe('scanFolder', () => {
   it('finds videos recursively, skips stubs, non-videos and dot-directories', async () => {
     const files = await scanFolder(root)
     const names = files.map((f) => f.fileName).sort()
-    expect(names).toEqual(['Film.One.2020.1080p.mkv', 'clip.webm'])
+    expect(names).toEqual(['Film.One.2020.1080p.mkv', 'capture.m2ts', 'clip.webm'])
   })
   it('attaches sidecar subtitles by basename prefix', async () => {
     const files = await scanFolder(root)

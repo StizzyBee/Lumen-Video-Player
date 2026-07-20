@@ -11,9 +11,14 @@ import { VIDEO_EXTENSIONS, SUBTITLE_EXTENSIONS } from '@shared/types'
 
 const MIME: Record<string, string> = {
   mp4: 'video/mp4', m4v: 'video/mp4', webm: 'video/webm', mkv: 'video/x-matroska',
-  mov: 'video/quicktime', avi: 'video/x-msvideo', wmv: 'video/x-ms-wmv',
-  flv: 'video/x-flv', mpg: 'video/mpeg', mpeg: 'video/mpeg', ts: 'video/mp2t',
-  m2ts: 'video/mp2t', ogv: 'video/ogg', '3gp': 'video/3gpp',
+  mov: 'video/quicktime', avi: 'video/x-msvideo', divx: 'video/x-msvideo',
+  wmv: 'video/x-ms-wmv', asf: 'video/x-ms-asf', flv: 'video/x-flv', f4v: 'video/mp4',
+  mpg: 'video/mpeg', mpeg: 'video/mpeg', mpe: 'video/mpeg', m1v: 'video/mpeg',
+  m2v: 'video/mpeg', vob: 'video/mpeg', ts: 'video/mp2t', m2ts: 'video/mp2t',
+  mts: 'video/mp2t', mod: 'video/mp2t', tod: 'video/mp2t', mxf: 'application/mxf',
+  ogv: 'video/ogg', ogm: 'video/ogg', '3gp': 'video/3gpp', '3g2': 'video/3gpp2',
+  rm: 'application/vnd.rn-realmedia', rmvb: 'application/vnd.rn-realmedia-vbr',
+  dv: 'video/dv', wtv: 'video/x-ms-wtv', 'dvr-ms': 'video/x-ms-dvr',
   srt: 'text/plain', vtt: 'text/vtt', jpg: 'image/jpeg'
 }
 const STREAMABLE = new Set<string>([...VIDEO_EXTENSIONS, ...SUBTITLE_EXTENSIONS])

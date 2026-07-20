@@ -52,28 +52,13 @@
       ],
       "fileAssociations": [
         {
-          "ext": "mp4",
-          "name": "Video"
-        },
-        {
-          "ext": "mkv",
-          "name": "Video"
-        },
-        {
-          "ext": "webm",
-          "name": "Video"
-        },
-        {
-          "ext": "mov",
-          "name": "Video"
-        },
-        {
-          "ext": "avi",
-          "name": "Video"
-        },
-        {
-          "ext": "m4v",
-          "name": "Video"
+          "ext": [
+            "mp4", "m4v", "mov", "webm", "ogv", "mkv", "avi", "divx",
+            "wmv", "asf", "flv", "f4v", "mpg", "mpeg", "mpe", "vob",
+            "ts", "m2ts", "mts", "mxf", "3gp", "3g2", "ogm", "rm", "rmvb",
+            "wtv", "dvr-ms"
+          ],
+          "name": "Lumen video"
         }
       ]
     },

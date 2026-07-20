@@ -21,6 +21,30 @@ export type DownloadEventPayload =
   | { type: 'error'; message: string }
   | { type: 'cancelled' }
 
+/** Build a download command without exposing process creation to tests. */
+export function buildDownloadArgs(url: string, destDir: string, ffmpeg: string | null): string[] {
+  // FFmpeg can safely merge separate high-quality streams into MP4. Without
+  // it, keep HLS downloads in their native MPEG-TS container: yt-dlp documents
+  // this as reducing corruption when a segmented download is interrupted.
+  const format = ffmpeg
+    ? ['--ffmpeg-location', ffmpeg, '-f', 'bv*+ba/b', '--merge-output-format', 'mp4']
+    : ['--hls-use-mpegts', '-f', 'b']
+  return [
+    '--no-playlist',
+    '--newline',
+    // --print enables quiet mode; keep progress events flowing to Lumen.
+    '--progress',
+    '--windows-filenames',
+    '--print', 'after_move:__LUMEN_DEST__:%(filepath)s',
+    // A movie with missing HLS/DASH fragments is not a successful download.
+    '--abort-on-unavailable-fragments',
+    '-o', '%(title)s [%(id)s].%(ext)s',
+    '-P', destDir,
+    ...format,
+    '--', url
+  ]
+}
+
 /**
  * Find an exe inside a winget "portable"/package install by id prefix. yt-dlp
  * sits directly in the package folder; ffmpeg is nested one level down in a
@@ -96,20 +120,7 @@ export class YtdlpManager {
     const { ytdlp, ffmpeg } = this.detect()
     if (!ytdlp) throw new Error('ytdlp-not-found')
     const id = `dl-${this.seq++}`
-    // Without ffmpeg, ask for the best pre-merged single file (often ≤720p);
-    // with it, merge best video + best audio into an mp4 for full quality.
-    const format = ffmpeg
-      ? ['--ffmpeg-location', ffmpeg, '-f', 'bv*+ba/b', '--merge-output-format', 'mp4']
-      : ['-f', 'b']
-    const args = [
-      '--no-playlist',
-      '--newline',
-      '--windows-filenames',
-      '-o', '%(title)s [%(id)s].%(ext)s',
-      '-P', destDir,
-      ...format,
-      '--', url
-    ]
+    const args = buildDownloadArgs(url, destDir, ffmpeg)
     const proc = spawn(ytdlp, args, { windowsHide: true })
     this.jobs.set(id, proc)
 
