@@ -74,9 +74,9 @@ interface PlayerStore {
   engineQuality(): { dropped: number; total: number } | null
   // ── mpv engine (beta) ──
   mpvAvailable: boolean
-  /** 'off' = built-in engine, 'playing' = mpv window active, 'needed' = mpv missing */
+  /** 'off' = built-in engine, 'playing' = embedded mpv active, 'needed' = mpv missing */
   mpvMode: 'off' | 'playing' | 'needed'
-  /** True when mpv is rendering inside Lumen's window (vs its own window) */
+  /** True once mpv is rendering inside Lumen's embedded surface */
   mpvEmbedded: boolean
   mpvTracks: MpvTracks
   /** True while a winget install of mpv is running */
@@ -304,17 +304,26 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
   },
 
   async locateMpv() {
-    const path = await platform.mpv.locate()
-    set({ mpvAvailable: !!path })
-    if (path) {
+    try {
+      const path = await platform.mpv.locate()
+      set({ mpvAvailable: !!path })
+      if (path) {
+        useUi.getState().toast({
+          kind: 'ok',
+          title: 'mpv engine ready',
+          desc: 'MKV, M2TS/MTS, VOB, MXF, HEVC, HDR and other advanced formats will use mpv.'
+        })
+        // retry the current file if we were blocked on it
+        const s = get()
+        if (s.mpvMode === 'needed' && s.item) s.openItem(s.item, { queue: s.queue })
+      }
+    } catch {
+      set({ mpvAvailable: false })
       useUi.getState().toast({
-        kind: 'ok',
-        title: 'mpv engine ready',
-        desc: 'MKV, M2TS/MTS, VOB, MXF, HEVC, HDR and other advanced formats will use mpv.'
-      })
-      // retry the current file if we were blocked on it
-      const s = get()
-      if (s.mpvMode === 'needed' && s.item) s.openItem(s.item, { queue: s.queue })
+        kind: 'warn',
+        title: 'Choose plain mpv.exe',
+        desc: 'Lumen blocks mpv.net and other players because they open a separate interface.'
+      }, 5000)
     }
   },
 
@@ -413,13 +422,18 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
             color: settings.video.color,
             hwdec: settings.playback.hardwareDecoding,
             volume: settings.audio.muted ? 0 : settings.audio.volume,
-            startAt,
-            embed: true
+            startAt
           })
-          .then((res) => set({ mpvEmbedded: !!res?.embedded }))
-          .catch(() => {
+          .then(() => set({ mpvEmbedded: true }))
+          .catch((error: unknown) => {
+            const message = error instanceof Error ? error.message : String(error)
             platform.app.setPlaying(false)
-            set({ status: 'error', errorKind: 'mpv', mpvMode: 'off', mpvEmbedded: false })
+            set({
+              status: 'error',
+              errorKind: message.includes('mpv-embed') || message.includes('mpv-surface') ? 'mpvEmbed' : 'mpv',
+              mpvMode: 'off',
+              mpvEmbedded: false
+            })
           })
         platform.app.setPlaying(true)
         if (!isStreamItem(item)) {

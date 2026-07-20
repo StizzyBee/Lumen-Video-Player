@@ -91,8 +91,6 @@ export interface LumenApi {
         hwdec: boolean
         volume: number
         startAt?: number
-        /** false = force mpv's own window (fallback when embedded video is black) */
-        embed?: boolean
       }
     ): Promise<{ embedded: boolean }>
     /** Position the embedded-video surface to match a region of the renderer (screen px derived in main) */

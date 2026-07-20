@@ -13,6 +13,19 @@ import { DEFAULT_SETTINGS, type ColorAdjust, type HdrMode } from '@shared/types'
 
 type Send = (channel: string, payload: unknown) => void
 
+/** mpv launch flags that make a separate player window impossible. */
+export function embeddedWindowArgs(wid: number): string[] {
+  if (!Number.isSafeInteger(wid) || wid <= 0) throw new Error('mpv-embed-required')
+  return [
+    `--wid=${wid}`,
+    '--force-window=no',
+    // CRITICAL for embedding: mpv's default d3d11 flip-model swapchain
+    // renders black inside a child window layered over Electron.
+    '--d3d11-flip=no',
+    '--no-osc', '--osd-level=0', '--no-input-default-bindings', '--input-vo-keyboard=no'
+  ]
+}
+
 export class MpvManager {
   private proc: ChildProcess | null = null
   private sock: net.Socket | null = null
@@ -27,7 +40,7 @@ export class MpvManager {
   /** Resolve mpv.exe from candidates; cache the result. */
   detect(force = false): string | null {
     if (!force && this.cachedPath !== undefined) return this.cachedPath
-    this.cachedPath = mpvCandidates(this.locateEnv()).find((p) => existsSync(p)) ?? null
+    this.cachedPath = mpvCandidates(this.locateEnv()).find((p) => supportsEmbed(p) && existsSync(p)) ?? null
     return this.cachedPath
   }
 
@@ -55,7 +68,7 @@ export class MpvManager {
       hwdec: boolean
       volume: number
       startAt?: number
-      wid?: number
+      wid: number
       /** yt-dlp path so mpv's ytdl hook can resolve website URLs to streams */
       ytdlpPath?: string
     }
@@ -64,21 +77,9 @@ export class MpvManager {
     if (!mpv) throw new Error('mpv-not-found')
     this.stop()
     this.pipeName = `\\\\.\\pipe\\lumen-mpv-${process.pid}-${Date.now()}`
-    // Embedded: render into Lumen's own child window (--wid), no mpv chrome —
-    // Lumen's controls drive it. Standalone: mpv's own window + built-in OSC
-    // (last-resort fallback only, e.g. mpv.net which ignores --wid).
-    const embed = typeof opts.wid === 'number' && opts.wid > 0
-    const windowArgs = embed
-      ? [
-          `--wid=${opts.wid}`,
-          // CRITICAL for embedding: mpv's default d3d11 flip-model swapchain
-          // renders BLACK when painted into a child window layered over
-          // Lumen's GPU-composited Electron window (you get audio, no picture).
-          // The blit presentation model composites correctly into a child HWND.
-          '--d3d11-flip=no',
-          '--no-osc', '--osd-level=0', '--no-input-default-bindings', '--input-vo-keyboard=no'
-        ]
-      : ['--force-window=yes', '--osc=yes', '--osd-bar=yes', '--title=Lumen — ${filename}']
+    // Always render into Lumen's child window. There is intentionally no
+    // standalone mpv fallback: a missing surface must fail inside Lumen.
+    const windowArgs = embeddedWindowArgs(opts.wid)
     const args = [
       `--input-ipc-server=${this.pipeName}`,
       '--idle=once',

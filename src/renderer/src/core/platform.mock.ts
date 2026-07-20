@@ -207,7 +207,7 @@ export function createMockLumen(): LumenApi {
       hasWinget: async () => false,
       install: async () => ({ ok: false, reason: 'no-winget' }),
       onInstallProgress: () => () => {},
-      play: async () => ({ embedded: false }),
+      play: async () => ({ embedded: true }),
       setSurfaceRect: () => {},
       playPause: () => {},
       seek: () => {},

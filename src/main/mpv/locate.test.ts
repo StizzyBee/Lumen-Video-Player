@@ -27,14 +27,12 @@ describe('mpvCandidates', () => {
     const list = mpvCandidates({ programFiles: 'C:\\Program Files' })
     expect(list).toContain('C:\\Program Files\\MPV Player\\mpv.exe')
   })
-  it('prefers every mpv.exe over any mpvnet.exe (mpv.net cannot embed)', () => {
+  it('never offers mpv.net because it would open a separate interface', () => {
     const list = mpvCandidates({
       programFiles: 'C:\\Program Files',
       localAppData: 'C:\\Users\\me\\AppData\\Local'
     })
-    const lastMpv = list.map((p) => /mpv\.exe$/i.test(p)).lastIndexOf(true)
-    const firstNet = list.findIndex((p) => /mpvnet\.exe$/i.test(p))
-    expect(firstNet).toBeGreaterThan(lastMpv)
+    expect(list.some((p) => /mpvnet\.exe$/i.test(p))).toBe(false)
   })
 })
 
@@ -43,5 +41,6 @@ describe('supportsEmbed', () => {
     expect(supportsEmbed('C:\\Program Files\\mpv\\mpv.exe')).toBe(true)
     expect(supportsEmbed('C:\\Program Files\\mpv.net\\mpvnet.exe')).toBe(false)
     expect(supportsEmbed('C:\\x\\MPVNET.EXE')).toBe(false)
+    expect(supportsEmbed('C:\\Program Files\\VideoLAN\\vlc.exe')).toBe(false)
   })
 })

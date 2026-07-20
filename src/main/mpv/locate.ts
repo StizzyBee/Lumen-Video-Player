@@ -1,6 +1,6 @@
 // Where to look for an installed mpv.exe. Pure candidate-list builder so the
 // probing order is unit-testable; the actual existence check lives in manager.
-import { join } from 'node:path'
+import { join, win32 } from 'node:path'
 
 export interface LocateEnv {
   /** User-configured explicit path (from settings), if any */
@@ -15,15 +15,13 @@ export interface LocateEnv {
   programFilesX86?: string
 }
 
-// Executable names we can drive. Plain mpv.exe comes first EVERYWHERE: the
-// mpv.net frontend (mpvnet.exe) speaks the same JSON IPC but owns its own
-// window and ignores --wid, so it can never render inside Lumen. Only fall
-// back to it when no real mpv exists anywhere on the machine.
-const EXES = ['mpv.exe', 'mpvnet.exe']
+// Lumen only accepts plain mpv. Frontends such as mpv.net own a separate UI
+// and cannot render into Lumen through --wid.
+const EXES = ['mpv.exe']
 
 /** Can this executable render into Lumen's window via --wid? */
 export function supportsEmbed(exePath: string): boolean {
-  return !/mpvnet\.exe$/i.test(exePath)
+  return win32.basename(exePath).toLowerCase() === 'mpv.exe'
 }
 
 /** Ordered list of candidate mpv executable paths to probe (first existing wins). */
@@ -54,7 +52,7 @@ export function mpvCandidates(env: LocateEnv): string[] {
     .map((d) => d.trim().replace(/^"|"$/g, ''))
     .filter(Boolean)
 
-  // All mpv.exe locations first, then mpvnet.exe as a last resort
+  // Only enumerate executables that can render inside Lumen.
   for (const exe of EXES) {
     for (const r of roots) push(join(r, exe))
     for (const d of pathDirs) push(join(d, exe))

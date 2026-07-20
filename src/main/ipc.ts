@@ -17,6 +17,7 @@ import { pathGuard, mediaUrl } from './protocol'
 import { setMiniMode } from './window'
 import { MpvManager } from './mpv/manager'
 import { hasWinget, installMpvViaWinget } from './mpv/install'
+import { supportsEmbed } from './mpv/locate'
 import { YtdlpManager } from './ytdlp/manager'
 import { wingetInstall } from './winget'
 
@@ -136,6 +137,7 @@ export function registerIpc(deps: IpcDeps): void {
     })
     if (res.canceled || !res.filePaths[0]) return null
     const chosen = res.filePaths[0]
+    if (!supportsEmbed(chosen)) throw new Error('mpv-embed-required')
     settings.update((s) => ({ ...s, video: { ...s.video, mpvPath: chosen } }))
     return mpv.refresh()
   })
@@ -146,26 +148,21 @@ export function registerIpc(deps: IpcDeps): void {
     if (!isUrl && (typeof path !== 'string' || !pathGuard.isAllowed(path))) {
       throw new Error('forbidden')
     }
-    // Embed when the engine can (--wid) and the user hasn't opted into a
-    // separate window. Only mpv.net (ignores --wid) or the fallback toggle
-    // send video to mpv's own window.
-    let wid: number | undefined
-    if (opts?.embed !== false && mpv.canEmbed()) {
-      const h = createSurface()
-      if (h) wid = h
-    }
+    // Embedded playback is mandatory. Never launch mpv without Lumen's child
+    // surface, because that would expose mpv's separate interface.
+    if (!mpv.canEmbed()) throw new Error('mpv-embed-required')
+    const wid = createSurface()
+    if (!wid) throw new Error('mpv-surface-unavailable')
     try {
       await mpv.load(path, { ...opts, wid, ytdlpPath: isUrl ? ytdlp.detect().ytdlp ?? undefined : undefined })
-      if (wid !== undefined) {
-        // Embedding steals focus to mpv's surface; give it back to Lumen so the
-        // keyboard shortcuts and control bar stay live.
-        const w = win()
-        if (!w.isDestroyed()) {
-          w.focus()
-          w.webContents.focus()
-        }
+      // Embedding steals focus to mpv's surface; give it back to Lumen so the
+      // keyboard shortcuts and control bar stay live.
+      const w = win()
+      if (!w.isDestroyed()) {
+        w.focus()
+        w.webContents.focus()
       }
-      return { embedded: wid !== undefined }
+      return { embedded: true }
     } catch (e) {
       destroySurface()
       throw e

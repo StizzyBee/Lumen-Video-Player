@@ -263,6 +263,10 @@ export function PlayerView(): ReactNode {
     mpv: {
       title: 'This video could not be decoded',
       desc: 'The mpv engine stopped before playback completed. The file may be incomplete or damaged. Try downloading it again or test another copy.'
+    },
+    mpvEmbed: {
+      title: 'Embedded playback could not start',
+      desc: 'Lumen blocked mpv from opening a separate interface. Install or locate plain mpv.exe in Settings → Video, then try again.'
     }
   }
 
@@ -288,20 +292,6 @@ export function PlayerView(): ReactNode {
       {/* mpv embedded inside Lumen: the video region mpv renders into */}
       {embeddedMpv && (
         <div className={`${styles.mpvSurface} ${mini ? styles.mpvSurfaceMini : ''}`} ref={mpvSurfaceRef} />
-      )}
-
-      {/* Compatibility fallback for mpv builds such as mpv.net that cannot embed. */}
-      {p.mpvMode === 'playing' && p.status !== 'loading' && !p.mpvEmbedded && (
-        <div className={styles.mpvPanel}>
-          <div className={styles.mpvBadge}>mpv engine</div>
-          <MonitorPlay size={44} strokeWidth={1.5} />
-          <div className={styles.mpvTitle}>Playing in a separate mpv window</div>
-          <div className={styles.mpvDesc}>
-            {p.item?.fileName} is decoding in mpv's own window with full HDR tone-mapping. Lumen's transport controls
-            below still drive it. This mpv build cannot render inside Lumen; install plain mpv from Settings → Video
-            to restore embedded playback.
-          </div>
-        </div>
       )}
 
       {/* mpv missing: setup prompt */}
