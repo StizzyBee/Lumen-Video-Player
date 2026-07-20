@@ -43,9 +43,6 @@ interface PlayerStore {
   openItem(item: LibraryItem, opts?: { queue?: string[]; startOver?: boolean; forceMpv?: boolean }): void
   /** Re-open the current item in the mpv engine (manual override / auto-fallback) */
   playInMpv(): void
-  /** Toggle mpv between embedded and its own window, re-opening the current file
-   *  (the escape hatch when embedded video renders black) */
-  toggleMpvWindowMode(): void
   openPaths(paths: string[]): Promise<void>
   /** Stream a remote URL (direct file → built-in engine; site page → mpv+yt-dlp) */
   openUrl(url: string): void
@@ -252,8 +249,14 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
       platform.mpv.onEvent((e) => {
         const s = usePlayer.getState()
         if (s.mpvMode !== 'playing') return
+        const failMpv = (): void => {
+          if (persistTimer) window.clearInterval(persistTimer)
+          persistTimer = null
+          platform.app.setPlaying(false)
+          set({ status: 'error', errorKind: 'mpv', mpvMode: 'off', mpvEmbedded: false })
+        }
         if (e.type === 'exit') {
-          s.close()
+          failMpv()
         } else if (e.type === 'tracks') {
           set({ mpvTracks: (e.data as MpvTracks) ?? { audio: [], sub: [] } })
         } else if (e.type === 'prop') {
@@ -294,7 +297,7 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
           s.applyVideoSettings()
           s.applyAudioSettings()
         } else if (e.type === 'error') {
-          set({ status: 'error', errorKind: 'mpv' })
+          failMpv()
         }
       })
     }
@@ -304,7 +307,11 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
     const path = await platform.mpv.locate()
     set({ mpvAvailable: !!path })
     if (path) {
-      useUi.getState().toast({ kind: 'ok', title: 'mpv engine ready', desc: 'MKV, AVI, HEVC and HDR files will use mpv.' })
+      useUi.getState().toast({
+        kind: 'ok',
+        title: 'mpv engine ready',
+        desc: 'MKV, M2TS/MTS, VOB, MXF, HEVC, HDR and other advanced formats will use mpv.'
+      })
       // retry the current file if we were blocked on it
       const s = get()
       if (s.mpvMode === 'needed' && s.item) s.openItem(s.item, { queue: s.queue })
@@ -407,10 +414,13 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
             hwdec: settings.playback.hardwareDecoding,
             volume: settings.audio.muted ? 0 : settings.audio.volume,
             startAt,
-            embed: !settings.video.mpvSeparateWindow
+            embed: true
           })
           .then((res) => set({ mpvEmbedded: !!res?.embedded }))
-          .catch(() => set({ mpvEmbedded: false }))
+          .catch(() => {
+            platform.app.setPlaying(false)
+            set({ status: 'error', errorKind: 'mpv', mpvMode: 'off', mpvEmbedded: false })
+          })
         platform.app.setPlaying(true)
         if (!isStreamItem(item)) {
           useLibrary.getState().patchItem(item.id, { lastPlayedAt: Date.now(), playCount: item.playCount + 1 })
@@ -478,20 +488,6 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
       return
     }
     get().openItem(s.item, { queue: s.queue, forceMpv: true })
-  },
-
-  toggleMpvWindowMode() {
-    const s = get()
-    if (s.mpvMode !== 'playing' || !s.item) return
-    const separate = !useSettings.getState().settings.video.mpvSeparateWindow
-    useSettings.getState().patch({ video: { mpvSeparateWindow: separate } })
-    useUi.getState().toast(
-      { kind: 'info', title: separate ? 'Switching to a separate window' : 'Switching to embedded video' },
-      2000
-    )
-    // Re-open at the current position so the switch is seamless
-    const resumed = { ...s.item, positionSec: Math.floor(s.time) }
-    get().openItem(resumed, { queue: s.queue, forceMpv: true })
   },
 
   async openPaths(paths) {

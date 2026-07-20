@@ -497,7 +497,7 @@ export function SettingsPage(): ReactNode {
               </Button>
             </div>
           )}
-          <Row query={q} label="mpv engine (MKV, AVI, HEVC, HDR)" desc={mpvAvailable ? 'Detected — MKV, AVI, WMV, FLV and HEVC/Dolby/DTS content plays embedded inside Lumen with true HDR passthrough on HDR displays.' : '“Install mpv” downloads the free mpv player (~60 MB) via Windows Package Manager to unlock MKV/AVI/WMV, HEVC and Dolby/DTS audio, and real HDR — all rendered inside Lumen’s own window. Already have it? Use “Locate”.'}>
+          <Row query={q} label="mpv engine (MKV, M2TS, HEVC, HDR)" desc={mpvAvailable ? 'Detected — M2TS/MTS, VOB, MXF, MKV, AVI, WMV, FLV and HEVC/Dolby/DTS content plays embedded inside Lumen with true HDR passthrough on HDR displays.' : '“Install mpv” downloads the free mpv player (~60 MB) via Windows Package Manager to unlock advanced containers and codecs — all rendered inside Lumen’s own window. Already have it? Use “Locate”.'}>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <span className={styles.sliderValue} style={{ minWidth: 0, color: mpvAvailable ? 'var(--ok)' : 'var(--text-3)' }}>
                 {mpvInstalling ? 'Installing…' : mpvAvailable ? 'Ready' : 'Not set up'}
@@ -515,11 +515,6 @@ export function SettingsPage(): ReactNode {
           {mpvAvailable && (
             <Row query={q} label="Always use mpv engine" desc="Route every file through mpv, not just the ones the built-in engine can't play. Best if most of your library is HEVC, 10-bit, or has Dolby/DTS audio. Lumen already falls back to mpv automatically when the built-in engine can't decode a file.">
               <Switch ariaLabel="Always use mpv engine" checked={!!s.video.preferMpv} onChange={(v) => patch({ video: { preferMpv: v } })} />
-            </Row>
-          )}
-          {mpvAvailable && (
-            <Row query={q} label="Play video in a separate window" desc="Fallback for the rare setup where embedded video shows a black screen (you hear audio but see nothing). Turn this on to play in mpv's own window, which renders reliably everywhere. Most machines should leave this off for video inside Lumen.">
-              <Switch ariaLabel="Play video in a separate window" checked={!!s.video.mpvSeparateWindow} onChange={(v) => patch({ video: { mpvSeparateWindow: v } })} />
             </Row>
           )}
         </Section>

@@ -1,11 +1,12 @@
 // Pure engine-selection: which playback engine handles a given file.
 // Unit-tested; used by the player store to pick html5 vs mpv (vs none).
+import { HTML5_VIDEO_EXTENSIONS } from '@shared/types'
 
 export type EngineId = 'html5' | 'mpv'
 export type EngineChoice = EngineId | 'none'
 
 /** Containers Chromium can demux (codecs still vary; HEVC/H.264/VP9/AV1). */
-export const HTML5_CONTAINERS = new Set(['mp4', 'm4v', 'mov', 'webm', 'ogv'])
+export const HTML5_CONTAINERS = new Set<string>(HTML5_VIDEO_EXTENSIONS)
 
 export interface SelectOpts {
   mpvAvailable: boolean
@@ -27,4 +28,4 @@ export function selectEngine(ext: string, opts: SelectOpts): EngineChoice {
 }
 
 /** Human list of formats that need mpv, for messaging. */
-export const MPV_ONLY_EXAMPLES = 'MKV, AVI, WMV, FLV, MPEG, TS'
+export const MPV_ONLY_EXAMPLES = 'MKV, M2TS/MTS, VOB, MXF, AVI, WMV, FLV and more'

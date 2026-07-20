@@ -80,9 +80,6 @@ export interface VideoSettings {
   mpvPath?: string
   /** Route every file through mpv (for libraries that are mostly HEVC/10-bit/DTS) */
   preferMpv?: boolean
-  /** Fallback: play mpv video in its own window instead of embedded in Lumen
-   *  (for the rare machine where embedded video renders black) */
-  mpvSeparateWindow?: boolean
 }
 
 export interface MpvTrack {
@@ -174,9 +171,20 @@ export interface DownloadProgress {
   item?: LibraryItem
 }
 
-export const VIDEO_EXTENSIONS = [
-  'mp4', 'm4v', 'mkv', 'webm', 'mov', 'avi', 'wmv', 'flv', 'mpg', 'mpeg', 'ts', 'm2ts', 'ogv', '3gp'
+/** Containers Chromium can demux directly. Codec support still varies by OS. */
+export const HTML5_VIDEO_EXTENSIONS = ['mp4', 'm4v', 'mov', 'webm', 'ogv'] as const
+
+/** Common containers and elementary streams handled by the mpv sidecar. */
+export const MPV_VIDEO_EXTENSIONS = [
+  'mkv', 'avi', 'divx', 'wmv', 'asf', 'flv', 'f4v',
+  'mpg', 'mpeg', 'mpe', 'm1v', 'm2v', 'vob',
+  'ts', 'm2ts', 'mts', 'mxf', 'mod', 'tod',
+  '3gp', '3g2', 'ogm', 'rm', 'rmvb', 'dv',
+  'wtv', 'dvr-ms', 'amv', 'nsv', 'bik', 'smk',
+  'h264', '264', 'h265', '265', 'hevc', 'ivf', 'y4m'
 ] as const
+
+export const VIDEO_EXTENSIONS = [...HTML5_VIDEO_EXTENSIONS, ...MPV_VIDEO_EXTENSIONS] as const
 
 export const SUBTITLE_EXTENSIONS = ['srt', 'vtt'] as const
 

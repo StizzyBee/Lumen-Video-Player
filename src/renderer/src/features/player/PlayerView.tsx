@@ -233,14 +233,6 @@ export function PlayerView(): ReactNode {
       ...(p.mpvAvailable && p.mpvMode !== 'playing' && item
         ? [{ id: 'mpv', label: 'Play in mpv engine', icon: <MonitorPlay size={16} />, onSelect: () => p.playInMpv() } as const]
         : []),
-      ...(p.mpvMode === 'playing' && item
-        ? [{
-            id: 'mpvwin',
-            label: p.mpvEmbedded ? 'Video black? Play in separate window' : 'Play embedded in Lumen',
-            icon: <MonitorPlay size={16} />,
-            onSelect: () => p.toggleMpvWindowMode()
-          } as const]
-        : []),
       ...(isDesktop && item
         ? [{ id: 'reveal', label: 'Show in folder', icon: <FolderOpen size={16} />, onSelect: () => platform.shell.showInFolder(item.path) } as const]
         : []),
@@ -257,7 +249,7 @@ export function PlayerView(): ReactNode {
   const errorCopy: Record<string, { title: string; desc: string }> = {
     unsupported: {
       title: 'This container needs the mpv engine',
-      desc: `${p.item?.ext.toUpperCase() ?? 'This'} files (MKV, AVI, WMV, FLV, TS…) aren't handled by the built-in engine. Install the mpv engine from Settings → Video to play them. MP4, MOV, M4V, WebM — with H.264, HEVC, VP9 and AV1 — play natively.`
+      desc: `${p.item?.ext.toUpperCase() ?? 'This'} files (MKV, M2TS/MTS, VOB, MXF, AVI, WMV, FLV and more) aren't handled by the built-in engine. Install the mpv engine from Settings → Video to play them. MP4, MOV, M4V and WebM play natively when their codecs are available.`
     },
     decode: {
       title: 'Codec not supported here',
@@ -267,7 +259,11 @@ export function PlayerView(): ReactNode {
       title: 'Playback stalled',
       desc: "The built-in engine couldn't keep decoding this file — usually an HEVC, 10-bit, or Dolby/DTS track. The mpv engine plays it in software."
     },
-    network: { title: 'File unreadable', desc: 'The file could not be read. It may have moved, or the drive is unavailable.' }
+    network: { title: 'File unreadable', desc: 'The file could not be read. It may have moved, or the drive is unavailable.' },
+    mpv: {
+      title: 'This video could not be decoded',
+      desc: 'The mpv engine stopped before playback completed. The file may be incomplete or damaged. Try downloading it again or test another copy.'
+    }
   }
 
   return (
@@ -294,26 +290,17 @@ export function PlayerView(): ReactNode {
         <div className={`${styles.mpvSurface} ${mini ? styles.mpvSurfaceMini : ''}`} ref={mpvSurfaceRef} />
       )}
 
-      {/* Separate-window mode: deliberate fallback toggle, mpv.net, or embed failure */}
-      {p.mpvMode === 'playing' && !p.mpvEmbedded && (
+      {/* Compatibility fallback for mpv builds such as mpv.net that cannot embed. */}
+      {p.mpvMode === 'playing' && p.status !== 'loading' && !p.mpvEmbedded && (
         <div className={styles.mpvPanel}>
           <div className={styles.mpvBadge}>mpv engine</div>
           <MonitorPlay size={44} strokeWidth={1.5} />
           <div className={styles.mpvTitle}>Playing in a separate mpv window</div>
           <div className={styles.mpvDesc}>
             {p.item?.fileName} is decoding in mpv's own window with full HDR tone-mapping. Lumen's transport controls
-            below still drive it.
-            {settings.video.mpvSeparateWindow ? (
-              <> To bring video back inside Lumen, turn off “Play video in a separate window” in Settings → Video.</>
-            ) : (
-              <> This mpv build can't render inside Lumen — install plain mpv from Settings → Video (one click) to embed it here.</>
-            )}
+            below still drive it. This mpv build cannot render inside Lumen; install plain mpv from Settings → Video
+            to restore embedded playback.
           </div>
-          {settings.video.mpvSeparateWindow && (
-            <Button variant="subtle" icon={<MonitorPlay size={16} />} onClick={() => p.toggleMpvWindowMode()}>
-              Play embedded in Lumen
-            </Button>
-          )}
         </div>
       )}
 
@@ -338,7 +325,7 @@ export function PlayerView(): ReactNode {
               </>
             ) : (
               <>
-                {p.item?.ext.toUpperCase()} files (MKV, AVI, WMV, FLV, TS…) play through mpv — a free, open-source
+                {p.item?.ext.toUpperCase()} files (MKV, M2TS/MTS, VOB, MXF, AVI, WMV, FLV and more) play through mpv — a free, open-source
                 engine that also gives true HDR tone-mapping. Install mpv, then point Lumen at it.
               </>
             )}
@@ -433,7 +420,7 @@ export function PlayerView(): ReactNode {
               <div className={styles.bigStateTitle}>{errorCopy[p.errorKind ?? '']?.title ?? 'Playback failed'}</div>
               <div className={styles.bigStateDesc}>{errorCopy[p.errorKind ?? '']?.desc ?? 'Something went wrong while playing this file.'}</div>
               <div className={styles.bigStateActions}>
-                {p.mpvAvailable && p.item && (
+                {p.mpvAvailable && p.item && p.errorKind !== 'mpv' && (
                   <Button variant="primary" icon={<MonitorPlay size={16} />} onClick={() => p.playInMpv()}>
                     Play in mpv engine
                   </Button>
@@ -443,7 +430,7 @@ export function PlayerView(): ReactNode {
                     Show in folder
                   </Button>
                 )}
-                <Button variant={p.mpvAvailable ? 'ghost' : 'primary'} onClick={() => p.close()}>
+                <Button variant={p.mpvAvailable && p.errorKind !== 'mpv' ? 'ghost' : 'primary'} onClick={() => p.close()}>
                   Close
                 </Button>
               </div>
