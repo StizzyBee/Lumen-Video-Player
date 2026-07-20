@@ -69,7 +69,15 @@ export class MpvManager {
     // (last-resort fallback only, e.g. mpv.net which ignores --wid).
     const embed = typeof opts.wid === 'number' && opts.wid > 0
     const windowArgs = embed
-      ? [`--wid=${opts.wid}`, '--no-osc', '--osd-level=0', '--no-input-default-bindings', '--input-vo-keyboard=no']
+      ? [
+          `--wid=${opts.wid}`,
+          // CRITICAL for embedding: mpv's default d3d11 flip-model swapchain
+          // renders BLACK when painted into a child window layered over
+          // Lumen's GPU-composited Electron window (you get audio, no picture).
+          // The blit presentation model composites correctly into a child HWND.
+          '--d3d11-flip=no',
+          '--no-osc', '--osd-level=0', '--no-input-default-bindings', '--input-vo-keyboard=no'
+        ]
       : ['--force-window=yes', '--osc=yes', '--osd-bar=yes', '--title=Lumen — ${filename}']
     const args = [
       `--input-ipc-server=${this.pipeName}`,

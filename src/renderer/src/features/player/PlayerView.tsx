@@ -233,6 +233,14 @@ export function PlayerView(): ReactNode {
       ...(p.mpvAvailable && p.mpvMode !== 'playing' && item
         ? [{ id: 'mpv', label: 'Play in mpv engine', icon: <MonitorPlay size={16} />, onSelect: () => p.playInMpv() } as const]
         : []),
+      ...(p.mpvMode === 'playing' && item
+        ? [{
+            id: 'mpvwin',
+            label: p.mpvEmbedded ? 'Video black? Play in separate window' : 'Play embedded in Lumen',
+            icon: <MonitorPlay size={16} />,
+            onSelect: () => p.toggleMpvWindowMode()
+          } as const]
+        : []),
       ...(isDesktop && item
         ? [{ id: 'reveal', label: 'Show in folder', icon: <FolderOpen size={16} />, onSelect: () => platform.shell.showInFolder(item.path) } as const]
         : []),
@@ -286,17 +294,26 @@ export function PlayerView(): ReactNode {
         <div className={`${styles.mpvSurface} ${mini ? styles.mpvSurfaceMini : ''}`} ref={mpvSurfaceRef} />
       )}
 
-      {/* Last-resort fallback (mpv.net or embed failure): video in mpv's own window */}
+      {/* Separate-window mode: deliberate fallback toggle, mpv.net, or embed failure */}
       {p.mpvMode === 'playing' && !p.mpvEmbedded && (
         <div className={styles.mpvPanel}>
           <div className={styles.mpvBadge}>mpv engine</div>
           <MonitorPlay size={44} strokeWidth={1.5} />
           <div className={styles.mpvTitle}>Playing in a separate mpv window</div>
           <div className={styles.mpvDesc}>
-            {p.item?.fileName} is decoding in mpv's own window with full HDR tone-mapping — this copy of mpv can't
-            render inside Lumen. Install plain mpv from Settings → Video (one click) to play everything embedded
-            here. Lumen's transport controls below still work.
+            {p.item?.fileName} is decoding in mpv's own window with full HDR tone-mapping. Lumen's transport controls
+            below still drive it.
+            {settings.video.mpvSeparateWindow ? (
+              <> To bring video back inside Lumen, turn off “Play video in a separate window” in Settings → Video.</>
+            ) : (
+              <> This mpv build can't render inside Lumen — install plain mpv from Settings → Video (one click) to embed it here.</>
+            )}
           </div>
+          {settings.video.mpvSeparateWindow && (
+            <Button variant="subtle" icon={<MonitorPlay size={16} />} onClick={() => p.toggleMpvWindowMode()}>
+              Play embedded in Lumen
+            </Button>
+          )}
         </div>
       )}
 

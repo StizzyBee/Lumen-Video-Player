@@ -43,6 +43,9 @@ interface PlayerStore {
   openItem(item: LibraryItem, opts?: { queue?: string[]; startOver?: boolean; forceMpv?: boolean }): void
   /** Re-open the current item in the mpv engine (manual override / auto-fallback) */
   playInMpv(): void
+  /** Toggle mpv between embedded and its own window, re-opening the current file
+   *  (the escape hatch when embedded video renders black) */
+  toggleMpvWindowMode(): void
   openPaths(paths: string[]): Promise<void>
   /** Stream a remote URL (direct file → built-in engine; site page → mpv+yt-dlp) */
   openUrl(url: string): void
@@ -403,7 +406,8 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
             color: settings.video.color,
             hwdec: settings.playback.hardwareDecoding,
             volume: settings.audio.muted ? 0 : settings.audio.volume,
-            startAt
+            startAt,
+            embed: !settings.video.mpvSeparateWindow
           })
           .then((res) => set({ mpvEmbedded: !!res?.embedded }))
           .catch(() => set({ mpvEmbedded: false }))
@@ -474,6 +478,20 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
       return
     }
     get().openItem(s.item, { queue: s.queue, forceMpv: true })
+  },
+
+  toggleMpvWindowMode() {
+    const s = get()
+    if (s.mpvMode !== 'playing' || !s.item) return
+    const separate = !useSettings.getState().settings.video.mpvSeparateWindow
+    useSettings.getState().patch({ video: { mpvSeparateWindow: separate } })
+    useUi.getState().toast(
+      { kind: 'info', title: separate ? 'Switching to a separate window' : 'Switching to embedded video' },
+      2000
+    )
+    // Re-open at the current position so the switch is seamless
+    const resumed = { ...s.item, positionSec: Math.floor(s.time) }
+    get().openItem(resumed, { queue: s.queue, forceMpv: true })
   },
 
   async openPaths(paths) {

@@ -80,6 +80,9 @@ export interface VideoSettings {
   mpvPath?: string
   /** Route every file through mpv (for libraries that are mostly HEVC/10-bit/DTS) */
   preferMpv?: boolean
+  /** Fallback: play mpv video in its own window instead of embedded in Lumen
+   *  (for the rare machine where embedded video renders black) */
+  mpvSeparateWindow?: boolean
 }
 
 export interface MpvTrack {

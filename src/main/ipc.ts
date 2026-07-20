@@ -138,10 +138,11 @@ export function registerIpc(deps: IpcDeps): void {
     if (!isUrl && (typeof path !== 'string' || !pathGuard.isAllowed(path))) {
       throw new Error('forbidden')
     }
-    // Always embed when the engine can (--wid): video belongs inside Lumen's
-    // UI. Only mpv.net (which ignores --wid) falls back to its own window.
+    // Embed when the engine can (--wid) and the user hasn't opted into a
+    // separate window. Only mpv.net (ignores --wid) or the fallback toggle
+    // send video to mpv's own window.
     let wid: number | undefined
-    if (mpv.canEmbed()) {
+    if (opts?.embed !== false && mpv.canEmbed()) {
       const h = createSurface()
       if (h) wid = h
     }

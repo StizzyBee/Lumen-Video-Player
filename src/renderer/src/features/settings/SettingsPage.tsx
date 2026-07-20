@@ -517,6 +517,11 @@ export function SettingsPage(): ReactNode {
               <Switch ariaLabel="Always use mpv engine" checked={!!s.video.preferMpv} onChange={(v) => patch({ video: { preferMpv: v } })} />
             </Row>
           )}
+          {mpvAvailable && (
+            <Row query={q} label="Play video in a separate window" desc="Fallback for the rare setup where embedded video shows a black screen (you hear audio but see nothing). Turn this on to play in mpv's own window, which renders reliably everywhere. Most machines should leave this off for video inside Lumen.">
+              <Switch ariaLabel="Play video in a separate window" checked={!!s.video.mpvSeparateWindow} onChange={(v) => patch({ video: { mpvSeparateWindow: v } })} />
+            </Row>
+          )}
         </Section>
 
         <Section id="audio" label="Audio" icon={<AudioLines size={16} />}>
