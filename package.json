@@ -1,7 +1,7 @@
 {
   "name": "lumen-player",
   "productName": "Lumen",
-  "version": "0.1.10",
+  "version": "0.2.0",
   "description": "A luminous home for your videos — a modern Windows video player.",
   "main": "out/main/index.js",
   "type": "module",
@@ -40,17 +40,41 @@
   "build": {
     "appId": "app.lumen.player",
     "productName": "Lumen",
-    "directories": { "output": "release" },
-    "files": ["out/**"],
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**"
+    ],
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "fileAssociations": [
-        { "ext": "mp4", "name": "Video" },
-        { "ext": "mkv", "name": "Video" },
-        { "ext": "webm", "name": "Video" },
-        { "ext": "mov", "name": "Video" },
-        { "ext": "avi", "name": "Video" },
-        { "ext": "m4v", "name": "Video" }
+        {
+          "ext": "mp4",
+          "name": "Video"
+        },
+        {
+          "ext": "mkv",
+          "name": "Video"
+        },
+        {
+          "ext": "webm",
+          "name": "Video"
+        },
+        {
+          "ext": "mov",
+          "name": "Video"
+        },
+        {
+          "ext": "avi",
+          "name": "Video"
+        },
+        {
+          "ext": "m4v",
+          "name": "Video"
+        }
       ]
     },
     "nsis": {
