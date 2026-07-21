@@ -9,6 +9,7 @@ import net from 'node:net'
 import { encodeCommand, parseMessages, cmd, OBSERVED, parseTrackList, type MpvResponse } from './protocol'
 import { mpvCandidates, supportsEmbed, type LocateEnv } from './locate'
 import { gradeArgs, gradeProps } from './grade'
+import { videoOutputArgs } from './renderer'
 import { DEFAULT_SETTINGS, type ColorAdjust, type HdrMode } from '@shared/types'
 
 type Send = (channel: string, payload: unknown) => void
@@ -19,9 +20,6 @@ export function embeddedWindowArgs(wid: number): string[] {
   return [
     `--wid=${wid}`,
     '--force-window=no',
-    // CRITICAL for embedding: mpv's default d3d11 flip-model swapchain
-    // renders black inside a child window layered over Electron.
-    '--d3d11-flip=no',
     '--no-osc', '--osd-level=0', '--no-input-default-bindings', '--input-vo-keyboard=no'
   ]
 }
@@ -35,7 +33,11 @@ export class MpvManager {
   private cachedPath: string | null | undefined = undefined
   private trackReqPending = false
 
-  constructor(private send: Send, private locateEnv: () => LocateEnv) {}
+  constructor(
+    private send: Send,
+    private locateEnv: () => LocateEnv,
+    private compatibilityRenderer: () => boolean = () => false
+  ) {}
 
   /** Resolve mpv.exe from candidates; cache the result. */
   detect(force = false): string | null {
@@ -84,8 +86,9 @@ export class MpvManager {
       `--input-ipc-server=${this.pipeName}`,
       '--idle=once',
       '--keep-open=yes',
-      opts.hwdec ? '--hwdec=auto-safe' : '--hwdec=no',
-      '--vo=gpu-next',
+      ...(this.compatibilityRenderer()
+        ? videoOutputArgs(true)
+        : [opts.hwdec ? '--hwdec=auto-safe' : '--hwdec=no', ...videoOutputArgs(false)]),
       ...gradeArgs(opts.color ?? DEFAULT_SETTINGS.video.color, opts.hdr),
       `--volume=${Math.round(opts.volume * 100)}`,
       ...(opts.startAt && opts.startAt > 1 ? [`--start=${Math.floor(opts.startAt)}`] : []),

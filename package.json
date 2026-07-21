@@ -1,7 +1,7 @@
 {
   "name": "lumen-player",
   "productName": "Lumen",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "A luminous home for your videos — a modern Windows video player.",
   "main": "out/main/index.js",
   "type": "module",
@@ -9,6 +9,7 @@
   "license": "MIT",
   "private": true,
   "scripts": {
+    "build:surface": "node scripts/build-surface.mjs",
     "dev": "electron-vite dev",
     "dev:web": "vite --config vite.web.config.ts",
     "start": "electron-vite preview",
@@ -16,7 +17,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "dist": "electron-vite build && electron-builder --win --publish never"
+    "dist": "npm run build:surface && electron-vite build && electron-builder --win --publish never"
   },
   "dependencies": {
     "lucide-react": "latest",
@@ -46,6 +47,12 @@
     },
     "files": [
       "out/**"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/surface/Lumen.SurfaceHost.exe",
+        "to": "surface/Lumen.SurfaceHost.exe"
+      }
     ],
     "win": {
       "target": [

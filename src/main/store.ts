@@ -1,5 +1,7 @@
 import { promises as fsp, readFileSync, existsSync, renameSync, copyFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
+
+type Normalize<T> = (value: unknown) => T | null
 
 /**
  * Minimal persistent JSON document store with atomic writes.
@@ -11,11 +13,13 @@ export class JsonStore<T> {
   private data: T
   private saveTimer: NodeJS.Timeout | null = null
   private saving = Promise.resolve()
+  private saveSequence = 0
 
   constructor(
     private readonly file: string,
     defaults: T,
-    private readonly debounceMs = 400
+    private readonly debounceMs = 400,
+    private readonly normalize?: Normalize<T>
   ) {
     this.data = this.load(defaults)
   }
@@ -24,7 +28,10 @@ export class JsonStore<T> {
     for (const candidate of [this.file, this.file + '.bak']) {
       try {
         if (existsSync(candidate)) {
-          return JSON.parse(readFileSync(candidate, 'utf-8')) as T
+          const parsed: unknown = JSON.parse(readFileSync(candidate, 'utf-8'))
+          if (!this.normalize) return parsed as T
+          const normalized = this.normalize(parsed)
+          if (normalized !== null) return normalized
         }
       } catch {
         // fall through to next candidate
@@ -60,7 +67,13 @@ export class JsonStore<T> {
     }
     const snapshot = JSON.stringify(this.data)
     this.saving = this.saving.then(async () => {
-      const tmp = join(dirname(this.file), `.${Date.now()}.tmp`)
+      // Every store shares one user-data directory. Include the destination
+      // name and a sequence so simultaneous settings/library/playlist flushes
+      // can never overwrite one another's temporary files.
+      const tmp = join(
+        dirname(this.file),
+        `.${basename(this.file)}.${process.pid}.${Date.now()}.${this.saveSequence++}.tmp`
+      )
       await fsp.mkdir(dirname(this.file), { recursive: true })
       await fsp.writeFile(tmp, snapshot, 'utf-8')
       try {

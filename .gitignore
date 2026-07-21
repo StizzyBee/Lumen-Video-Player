@@ -10,3 +10,4 @@ Thumbs.db
 *.log
 .vite/
 coverage/
+resources/surface/*.exe

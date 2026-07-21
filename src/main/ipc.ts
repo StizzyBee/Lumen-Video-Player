@@ -18,6 +18,7 @@ import { setMiniMode } from './window'
 import { MpvManager } from './mpv/manager'
 import { hasWinget, installMpvViaWinget } from './mpv/install'
 import { supportsEmbed } from './mpv/locate'
+import { NativeSurfaceHost } from './mpv/surface'
 import { YtdlpManager } from './ytdlp/manager'
 import { wingetInstall } from './winget'
 
@@ -28,6 +29,8 @@ export interface IpcDeps {
   playlists: JsonStore<{ items: Playlist[] }>
   thumbsDir: string
   openedFile: string | null
+  mpvCompatibilityRenderer: () => boolean
+  surfaceHostPath: string
 }
 
 export function registerIpc(deps: IpcDeps): void {
@@ -39,7 +42,7 @@ export function registerIpc(deps: IpcDeps): void {
   // renders INTO (--wid), positioned by the renderer so the video sits inside
   // Lumen's own player UI instead of mpv's separate window.
   type SurfaceRect = { x: number; y: number; width: number; height: number; innerWidth: number }
-  let surface: BrowserWindow | null = null
+  const surface = new NativeSurfaceHost(deps.surfaceHostPath)
   let lastRect: SurfaceRect | null = null
   let cursorTimer: NodeJS.Timeout | null = null
   let lastCursor = { x: -1, y: -1 }
@@ -50,7 +53,7 @@ export function registerIpc(deps: IpcDeps): void {
   const startCursorWatch = (): void => {
     stopCursorWatch()
     cursorTimer = setInterval(() => {
-      if (!surface || surface.isDestroyed()) return
+      if (!surface.isRunning()) return
       const p = screen.getCursorScreenPoint()
       const moved = Math.abs(p.x - lastCursor.x) > 2 || Math.abs(p.y - lastCursor.y) > 2
       lastCursor = p
@@ -64,32 +67,23 @@ export function registerIpc(deps: IpcDeps): void {
 
   const destroySurface = (): void => {
     stopCursorWatch()
-    if (surface && !surface.isDestroyed()) surface.destroy()
-    surface = null
+    surface.destroy()
     lastRect = null
   }
-  const createSurface = (): number | null => {
+  const createSurface = async (): Promise<number | null> => {
     destroySurface()
     try {
       const parent = win()
-      surface = new BrowserWindow({
-        parent,
-        frame: false,
-        resizable: false,
-        movable: false,
-        minimizable: false,
-        maximizable: false,
-        skipTaskbar: true,
-        focusable: false,
-        hasShadow: false,
-        backgroundColor: '#000000',
-        show: false
-      })
       const b = parent.getContentBounds()
-      surface.setBounds({ x: b.x, y: b.y + 42, width: b.width, height: Math.max(1, b.height - 42) })
-      surface.showInactive()
+      const parentWid = Number(parent.getNativeWindowHandle().readBigUInt64LE())
+      const wid = await surface.create(parentWid, {
+        x: 0,
+        y: 42,
+        width: b.width,
+        height: Math.max(1, b.height - 42)
+      })
       startCursorWatch()
-      return Number(surface.getNativeWindowHandle().readBigUInt64LE())
+      return wid
     } catch {
       destroySurface()
       return null
@@ -97,12 +91,12 @@ export function registerIpc(deps: IpcDeps): void {
   }
   const positionSurface = (rect: SurfaceRect): void => {
     lastRect = rect
-    if (!surface || surface.isDestroyed()) return
+    if (!surface.isRunning()) return
     const b = win().getContentBounds()
     const scale = rect.innerWidth > 0 ? b.width / rect.innerWidth : 1
     surface.setBounds({
-      x: Math.round(b.x + rect.x * scale),
-      y: Math.round(b.y + rect.y * scale),
+      x: Math.round(rect.x * scale),
+      y: Math.round(rect.y * scale),
       width: Math.max(1, Math.round(rect.width * scale)),
       height: Math.max(1, Math.round(rect.height * scale))
     })
@@ -126,7 +120,8 @@ export function registerIpc(deps: IpcDeps): void {
       localAppData: process.env.LOCALAPPDATA,
       programFiles: process.env['ProgramFiles'],
       programFilesX86: process.env['ProgramFiles(x86)']
-    })
+    }),
+    deps.mpvCompatibilityRenderer
   )
   ipcMain.handle('mpv:detect', () => mpv.detect(true))
   ipcMain.handle('mpv:locate', async () => {
@@ -151,7 +146,7 @@ export function registerIpc(deps: IpcDeps): void {
     // Embedded playback is mandatory. Never launch mpv without Lumen's child
     // surface, because that would expose mpv's separate interface.
     if (!mpv.canEmbed()) throw new Error('mpv-embed-required')
-    const wid = createSurface()
+    const wid = await createSurface()
     if (!wid) throw new Error('mpv-surface-unavailable')
     try {
       await mpv.load(path, { ...opts, wid, ytdlpPath: isUrl ? ytdlp.detect().ytdlp ?? undefined : undefined })

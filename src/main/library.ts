@@ -8,6 +8,30 @@ import { VIDEO_EXTENSIONS, type LibraryItem, type LibraryState, type ScanProgres
 
 const VIDEO_SET = new Set<string>(VIDEO_EXTENSIONS)
 
+export function normalizeLibraryState(value: unknown): LibraryState | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const raw = value as Partial<LibraryState>
+  const hasFolders = Array.isArray(raw.folders)
+  const hasItems = Array.isArray(raw.items)
+  if (!hasFolders && !hasItems) return null
+
+  const folders = hasFolders
+    ? [...new Set(raw.folders!.filter((folder): folder is string => typeof folder === 'string' && folder.length > 0))]
+    : []
+  const items = hasItems
+    ? raw.items!.filter((item): item is LibraryItem =>
+        !!item && typeof item === 'object' && typeof item.id === 'string' && typeof item.path === 'string'
+      )
+    : []
+
+  return {
+    revision: typeof raw.revision === 'number' && Number.isFinite(raw.revision) ? raw.revision : 1,
+    folders,
+    items,
+    ...(typeof raw.seeded === 'boolean' ? { seeded: raw.seeded } : {})
+  }
+}
+
 type Broadcast = (channel: string, payload: unknown) => void
 
 export class Library {
@@ -18,11 +42,12 @@ export class Library {
   private notifyTimer: NodeJS.Timeout | null = null
 
   constructor(userDataDir: string) {
-    this.store = new JsonStore<LibraryState>(join(userDataDir, 'library.json'), {
-      revision: 1,
-      folders: [],
-      items: []
-    })
+    this.store = new JsonStore<LibraryState>(
+      join(userDataDir, 'library.json'),
+      { revision: 1, folders: [], items: [] },
+      400,
+      normalizeLibraryState
+    )
     pathGuard.setRoots(this.state.folders)
     // Loose files added in previous sessions keep streaming rights
     for (const item of this.state.items) pathGuard.allowFileDir(item.path)
