@@ -76,12 +76,15 @@ export function registerIpc(deps: IpcDeps): void {
       const parent = win()
       const b = parent.getContentBounds()
       const parentWid = Number(parent.getNativeWindowHandle().readBigUInt64LE())
-      lastRect = { x: 0, y: 42, width: b.width, height: Math.max(1, b.height - 42), innerWidth: b.width }
+      // Initial guess until the renderer reports the real video region: clear
+      // the 42px title bar — which doesn't exist in fullscreen.
+      const topInset = parent.isFullScreen() ? 0 : 42
+      lastRect = { x: 0, y: topInset, width: b.width, height: Math.max(1, b.height - topInset), innerWidth: b.width }
       const initialBounds = screen.dipToScreenRect(parent, {
         x: b.x,
-        y: b.y + 42,
+        y: b.y + topInset,
         width: b.width,
-        height: Math.max(1, b.height - 42)
+        height: Math.max(1, b.height - topInset)
       })
       await surface.create(parentWid, videoWid, initialBounds)
       startCursorWatch()

@@ -102,6 +102,10 @@ export const useUi = create<UiStore>((set, get) => ({
     set({ playlistDrawerOpen: open })
   },
   setFullscreen(on) {
+    // Fullscreen and the floating mini window are mutually exclusive: leave
+    // mini first so its always-on-top + 16:9 aspect lock can't constrain the
+    // fullscreen window (or linger after leaving it).
+    if (on && get().miniMode) get().toggleMiniMode()
     platform.win.setFullscreen(on)
     // Browser mock fires the event; Electron fires via main. Optimistic set for
     // instant chrome response either way:

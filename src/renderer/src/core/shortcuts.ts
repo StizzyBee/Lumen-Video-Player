@@ -19,6 +19,7 @@ export const DEFAULT_KEYMAP: Record<string, string> = {
   'playback.volumeDown': 'Down',
   'playback.mute': 'M',
   'playback.fullscreen': 'F',
+  'playback.fullscreenF11': 'F11',
   'playback.speedDown': '[',
   'playback.speedUp': ']',
   'playback.speedReset': '\\',

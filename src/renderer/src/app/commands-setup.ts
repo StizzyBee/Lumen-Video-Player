@@ -51,6 +51,10 @@ export function setupCommands(): void {
       id: 'playback.fullscreen', title: 'Toggle fullscreen', category: 'Playback', when: inPlayer,
       run: () => ui().setFullscreen(!ui().fullscreen)
     },
+    {
+      id: 'playback.fullscreenF11', title: 'Toggle fullscreen (F11)', category: 'Playback', hidden: true, when: inPlayer,
+      run: () => ui().setFullscreen(!ui().fullscreen)
+    },
     { id: 'playback.speedUp', title: 'Speed up', category: 'Playback', when: inPlayer, run: () => adjustRate(0.25) },
     { id: 'playback.speedDown', title: 'Slow down', category: 'Playback', when: inPlayer, run: () => adjustRate(-0.25) },
     { id: 'playback.speedReset', title: 'Reset speed to 1×', category: 'Playback', when: inPlayer, run: () => player().setRate(1) },
