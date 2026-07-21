@@ -20,6 +20,7 @@ export function LumenGlyph({ size = 18 }: { size?: number }): ReactNode {
 
 export function TitleBar(): ReactNode {
   const setPaletteOpen = useUi((s) => s.setPaletteOpen)
+  const fullscreen = useUi((s) => s.fullscreen)
   const playerOpen = usePlayer((s) => s.item !== null)
   const [maximized, setMaximized] = useState(false)
 
@@ -27,6 +28,10 @@ export function TitleBar(): ReactNode {
     void platform.win.isMaximized().then(setMaximized)
     return platform.win.onMaximized(setMaximized)
   }, [])
+
+  // Electron's frameless window has its own 42px title bar. Keep it out of
+  // true fullscreen so the playback surface can reach every display edge.
+  if (fullscreen) return null
 
   return (
     <header

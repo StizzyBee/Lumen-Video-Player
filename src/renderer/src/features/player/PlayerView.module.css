@@ -37,6 +37,11 @@
   top: 42px;
   bottom: 0;
 }
+.chromeHidden .mpvSurfaceFullscreen {
+  /* Fullscreen has no window title bar: use the complete display. */
+  top: 0;
+  bottom: 0;
+}
 
 /* ── Top bar ── */
 /* The gradient strip itself is click-through (clicks reach the video), only

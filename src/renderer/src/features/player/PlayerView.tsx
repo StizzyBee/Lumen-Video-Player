@@ -291,7 +291,10 @@ export function PlayerView(): ReactNode {
 
       {/* mpv embedded inside Lumen: the video region mpv renders into */}
       {embeddedMpv && (
-        <div className={`${styles.mpvSurface} ${mini ? styles.mpvSurfaceMini : ''}`} ref={mpvSurfaceRef} />
+        <div
+          className={`${styles.mpvSurface} ${mini ? styles.mpvSurfaceMini : ''} ${ui.fullscreen ? styles.mpvSurfaceFullscreen : ''}`}
+          ref={mpvSurfaceRef}
+        />
       )}
 
       {/* mpv missing: setup prompt */}
