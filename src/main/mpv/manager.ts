@@ -1,8 +1,8 @@
 // mpv sidecar manager (main process). Detects an installed mpv, launches it
 // for containers/codecs the built-in engine can't handle (MKV/AVI/HEVC/HDR…),
 // and bridges JSON IPC so Lumen's controls drive playback and receive live
-// position/duration/eof updates. The video renders into Lumen's own window
-// (--wid embedding) with true HDR passthrough via gpu-next.
+// position/duration/eof updates. The video is a borderless, taskbar-hidden
+// render layer owned and positioned by Lumen, with no separate player UI.
 import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import net from 'node:net'
@@ -14,14 +14,25 @@ import { DEFAULT_SETTINGS, type ColorAdjust, type HdrMode } from '@shared/types'
 
 type Send = (channel: string, payload: unknown) => void
 
-/** mpv launch flags that make a separate player window impossible. */
-export function embeddedWindowArgs(wid: number): string[] {
-  if (!Number.isSafeInteger(wid) || wid <= 0) throw new Error('mpv-embed-required')
+/** MPV creates a hidden render HWND which Lumen immediately adopts as an owned layer. */
+export function embeddedWindowArgs(): string[] {
   return [
-    `--wid=${wid}`,
-    '--force-window=no',
+    '--force-window=yes',
+    '--no-border',
+    '--show-in-taskbar=no',
+    '--taskbar-progress=no',
+    '--window-minimized=yes',
+    '--geometry=1x1+0+0',
+    '--auto-window-resize=no',
+    '--keepaspect-window=no',
     '--no-osc', '--osd-level=0', '--no-input-default-bindings', '--input-vo-keyboard=no'
   ]
+}
+
+interface PendingRequest {
+  resolve: (message: MpvResponse) => void
+  reject: (error: Error) => void
+  timer: NodeJS.Timeout
 }
 
 export class MpvManager {
@@ -32,6 +43,7 @@ export class MpvManager {
   private pipeName = ''
   private cachedPath: string | null | undefined = undefined
   private trackReqPending = false
+  private pending = new Map<number, PendingRequest>()
 
   constructor(
     private send: Send,
@@ -70,18 +82,17 @@ export class MpvManager {
       hwdec: boolean
       volume: number
       startAt?: number
-      wid: number
       /** yt-dlp path so mpv's ytdl hook can resolve website URLs to streams */
       ytdlpPath?: string
     }
-  ): Promise<void> {
+  ): Promise<number> {
     const mpv = this.detect()
     if (!mpv) throw new Error('mpv-not-found')
     this.stop()
     this.pipeName = `\\\\.\\pipe\\lumen-mpv-${process.pid}-${Date.now()}`
-    // Always render into Lumen's child window. There is intentionally no
-    // standalone mpv fallback: a missing surface must fail inside Lumen.
-    const windowArgs = embeddedWindowArgs(opts.wid)
+    // MPV's nested child-window swapchain is black on virtual GPUs. Start its
+    // own render HWND hidden; IPC adopts it into Lumen before it is shown.
+    const windowArgs = embeddedWindowArgs()
     const args = [
       `--input-ipc-server=${this.pipeName}`,
       '--idle=once',
@@ -97,7 +108,7 @@ export class MpvManager {
       '--',
       filePath
     ]
-    const proc = spawn(mpv, args, { windowsHide: false })
+    const proc = spawn(mpv, args, { windowsHide: true })
     this.proc = proc
     // Guard on process identity: when a new load replaces this proc (cleanup
     // nulls this.proc before killing), its late exit must not tear down the
@@ -113,6 +124,8 @@ export class MpvManager {
       this.cleanup()
     })
     await this.connect()
+    await this.waitForSocket()
+    return this.waitForWindowId()
   }
 
   /** Apply HDR mode + color adjustments live (same mapping as launch args). */
@@ -154,6 +167,15 @@ export class MpvManager {
   }
 
   private relay(m: MpvResponse): void {
+    if (m.request_id) {
+      const pending = this.pending.get(m.request_id)
+      if (pending) {
+        this.pending.delete(m.request_id)
+        clearTimeout(pending.timer)
+        pending.resolve(m)
+        return
+      }
+    }
     if (m.event === 'property-change' && m.name) {
       if (m.name === 'track-list') {
         this.send('mpv:event', { type: 'tracks', data: parseTrackList(m.data) })
@@ -181,6 +203,50 @@ export class MpvManager {
     this.sock.write(encodeCommand(command, this.reqId++))
   }
 
+  private request(command: (string | number | boolean)[], timeoutMs = 750): Promise<MpvResponse> {
+    const sock = this.sock
+    if (!sock) return Promise.reject(new Error('mpv-ipc-unavailable'))
+    const requestId = this.reqId++
+    return new Promise<MpvResponse>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(requestId)
+        reject(new Error('mpv-ipc-timeout'))
+      }, timeoutMs)
+      this.pending.set(requestId, { resolve, reject, timer })
+      try {
+        sock.write(encodeCommand(command, requestId))
+      } catch {
+        clearTimeout(timer)
+        this.pending.delete(requestId)
+        reject(new Error('mpv-ipc-unavailable'))
+      }
+    })
+  }
+
+  private async waitForSocket(): Promise<void> {
+    for (let attempt = 0; attempt < 60; attempt++) {
+      if (this.sock) return
+      if (!this.proc) break
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+    throw new Error('mpv-ipc-unavailable')
+  }
+
+  private async waitForWindowId(): Promise<number> {
+    for (let attempt = 0; attempt < 50; attempt++) {
+      if (!this.proc) break
+      try {
+        const response = await this.request(cmd.getProp('window-id'))
+        const wid = Number(response.data)
+        if (response.error === 'success' && Number.isSafeInteger(wid) && wid > 0) return wid
+      } catch {
+        // The VO window can appear a few frames after the IPC socket.
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+    throw new Error('mpv-surface-unavailable')
+  }
+
   // ── transport (called from renderer via IPC) ──
   play(): void { this.write(cmd.setProp('pause', false)) }
   pause(): void { this.write(cmd.setProp('pause', true)) }
@@ -200,6 +266,11 @@ export class MpvManager {
   }
 
   private cleanup(): void {
+    for (const pending of this.pending.values()) {
+      clearTimeout(pending.timer)
+      pending.reject(new Error('mpv-stopped'))
+    }
+    this.pending.clear()
     this.sock?.destroy()
     this.sock = null
     this.buffer = ''

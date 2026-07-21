@@ -33,7 +33,8 @@
   bottom: 88px;
 }
 .chromeHidden .mpvSurface {
-  top: 0;
+  /* Keep Lumen's title bar reachable even when playback chrome is hidden. */
+  top: 42px;
   bottom: 0;
 }
 

@@ -8,7 +8,7 @@ export interface SurfaceBounds {
   height: number
 }
 
-/** Owns the true Win32 child HWND that mpv renders into. */
+/** Keeps MPV's borderless render layer owned, positioned, and hidden with Lumen. */
 export class NativeSurfaceHost {
   private proc: ChildProcess | null = null
 
@@ -18,14 +18,15 @@ export class NativeSurfaceHost {
     return this.proc !== null
   }
 
-  async create(parentWid: number, bounds: SurfaceBounds): Promise<number> {
+  async create(ownerWid: number, videoWid: number, bounds: SurfaceBounds): Promise<void> {
     this.destroy()
     if (!existsSync(this.helperPath)) throw new Error('mpv-surface-host-missing')
-    if (!Number.isSafeInteger(parentWid) || parentWid <= 0) throw new Error('mpv-surface-unavailable')
+    if (!Number.isSafeInteger(ownerWid) || ownerWid <= 0) throw new Error('mpv-surface-unavailable')
+    if (!Number.isSafeInteger(videoWid) || videoWid <= 0) throw new Error('mpv-surface-unavailable')
 
     const proc = spawn(
       this.helperPath,
-      [parentWid, bounds.x, bounds.y, bounds.width, bounds.height].map(String),
+      [ownerWid, videoWid, bounds.x, bounds.y, bounds.width, bounds.height].map(String),
       { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] }
     )
     this.proc = proc
@@ -33,20 +34,20 @@ export class NativeSurfaceHost {
       if (this.proc === proc) this.proc = null
     })
 
-    return new Promise<number>((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       let output = ''
       let settled = false
-      const finish = (error?: Error, wid?: number): void => {
+      const finish = (error?: Error): void => {
         if (settled) return
         settled = true
         clearTimeout(timer)
         proc.stdout?.removeAllListeners('data')
         proc.removeListener('error', onError)
-        if (error || !wid) {
+        if (error) {
           if (this.proc === proc) this.destroy()
-          reject(error ?? new Error('mpv-surface-unavailable'))
+          reject(error)
         } else {
-          resolve(wid)
+          resolve()
         }
       }
       const onError = (): void => finish(new Error('mpv-surface-unavailable'))
@@ -57,7 +58,7 @@ export class NativeSurfaceHost {
         const line = output.split(/\r?\n/, 1)[0]?.trim()
         if (!line || !/^\d+$/.test(line)) return
         const wid = Number(line)
-        finish(Number.isSafeInteger(wid) && wid > 0 ? undefined : new Error('mpv-surface-unavailable'), wid)
+        finish(wid === videoWid ? undefined : new Error('mpv-surface-unavailable'))
       })
     })
   }

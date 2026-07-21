@@ -13,11 +13,9 @@ describe('needsCompatibilityRenderer', () => {
 })
 
 describe('videoOutputArgs', () => {
-  it('uses OpenGL plus software decode in compatibility mode', () => {
+  it('uses Direct3D 9 plus software decode in compatibility mode', () => {
     expect(videoOutputArgs(true)).toEqual([
-      '--vo=gpu',
-      '--gpu-api=opengl',
-      '--gpu-context=win',
+      '--vo=direct3d',
       '--hwdec=no'
     ])
   })

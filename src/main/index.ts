@@ -113,7 +113,7 @@ async function bootstrap(): Promise<void> {
       { windowsHide: true, encoding: 'utf8', timeout: 1000 },
       (_error, stdout) => {
         mpvCompatibilityRenderer = needsCompatibilityRenderer({ displayAdapters: stdout ?? '' })
-        console.info(`[Lumen] mpv renderer: ${mpvCompatibilityRenderer ? 'OpenGL compatibility' : 'gpu-next'}`)
+        console.info(`[Lumen] mpv renderer: ${mpvCompatibilityRenderer ? 'Direct3D compatibility' : 'gpu-next'}`)
       }
     )
   }

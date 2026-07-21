@@ -82,8 +82,8 @@ export function PlayerView(): ReactNode {
     })
   }, [embeddedMpv, poke])
 
-  // Embedded mpv: continuously report the video region so main can size mpv's
-  // surface window to sit exactly inside Lumen's player UI.
+  // Embedded mpv: continuously report the video region so main can lock MPV's
+  // borderless render layer exactly inside Lumen's player UI.
   useEffect(() => {
     if (!embeddedMpv) return
     const el = mpvSurfaceRef.current

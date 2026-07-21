@@ -1,8 +1,8 @@
 /**
  * Virtual display adapters commonly accept a D3D11 swapchain while never
- * presenting it into a child HWND. mpv then reports healthy video playback,
- * but Electron shows a black embedded surface. OpenGL avoids the virtual D3D
- * swapchain on those adapters while preserving mpv's shader-based controls.
+ * presenting it into a child HWND. Lumen avoids that nesting entirely, and
+ * uses MPV's mature Direct3D 9 output on virtual adapters for the broadest
+ * working software-rendered path.
  */
 export function needsCompatibilityRenderer(gpuInfo: unknown, featureStatus?: unknown): boolean {
   const signature = JSON.stringify({ gpuInfo, featureStatus }).toLowerCase()
@@ -20,11 +20,8 @@ export function needsCompatibilityRenderer(gpuInfo: unknown, featureStatus?: unk
 export function videoOutputArgs(compatibilityMode: boolean): string[] {
   if (compatibilityMode) {
     return [
-      '--vo=gpu',
-      '--gpu-api=opengl',
-      '--gpu-context=win',
-      // Virtual adapters expose D3D11 decode APIs that fail after allocation.
-      // Software H.264/HEVC decode is more reliable and avoids repeated resets.
+      '--vo=direct3d',
+      // Virtual adapters expose hardware decode APIs that fail after allocation.
       '--hwdec=no'
     ]
   }

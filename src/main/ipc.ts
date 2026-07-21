@@ -38,9 +38,9 @@ export function registerIpc(deps: IpcDeps): void {
   const win = (): BrowserWindow => deps.win
 
   // ── mpv sidecar engine (beta) ──────────────────────────────────────────────
-  // Embedded-video surface: a frameless, non-focusable child window that mpv
-  // renders INTO (--wid), positioned by the renderer so the video sits inside
-  // Lumen's own player UI instead of mpv's separate window.
+  // Embedded-video surface: MPV's borderless render HWND is owned by Lumen,
+  // excluded from the taskbar, and locked to the renderer's video region. It
+  // remains a top-level swapchain because nested HWNDs render black on VMware.
   type SurfaceRect = { x: number; y: number; width: number; height: number; innerWidth: number }
   const surface = new NativeSurfaceHost(deps.surfaceHostPath)
   let lastRect: SurfaceRect | null = null
@@ -70,23 +70,25 @@ export function registerIpc(deps: IpcDeps): void {
     surface.destroy()
     lastRect = null
   }
-  const createSurface = async (): Promise<number | null> => {
+  const createSurface = async (videoWid: number): Promise<boolean> => {
     destroySurface()
     try {
       const parent = win()
       const b = parent.getContentBounds()
       const parentWid = Number(parent.getNativeWindowHandle().readBigUInt64LE())
-      const wid = await surface.create(parentWid, {
-        x: 0,
-        y: 42,
+      lastRect = { x: 0, y: 42, width: b.width, height: Math.max(1, b.height - 42), innerWidth: b.width }
+      const initialBounds = screen.dipToScreenRect(parent, {
+        x: b.x,
+        y: b.y + 42,
         width: b.width,
         height: Math.max(1, b.height - 42)
       })
+      await surface.create(parentWid, videoWid, initialBounds)
       startCursorWatch()
-      return wid
+      return true
     } catch {
       destroySurface()
-      return null
+      return false
     }
   }
   const positionSurface = (rect: SurfaceRect): void => {
@@ -94,12 +96,13 @@ export function registerIpc(deps: IpcDeps): void {
     if (!surface.isRunning()) return
     const b = win().getContentBounds()
     const scale = rect.innerWidth > 0 ? b.width / rect.innerWidth : 1
-    surface.setBounds({
-      x: Math.round(rect.x * scale),
-      y: Math.round(rect.y * scale),
+    const dipBounds = {
+      x: Math.round(b.x + rect.x * scale),
+      y: Math.round(b.y + rect.y * scale),
       width: Math.max(1, Math.round(rect.width * scale)),
       height: Math.max(1, Math.round(rect.height * scale))
-    })
+    }
+    surface.setBounds(screen.dipToScreenRect(win(), dipBounds))
   }
   const reposition = (): void => {
     if (lastRect) positionSurface(lastRect)
@@ -143,15 +146,18 @@ export function registerIpc(deps: IpcDeps): void {
     if (!isUrl && (typeof path !== 'string' || !pathGuard.isAllowed(path))) {
       throw new Error('forbidden')
     }
-    // Embedded playback is mandatory. Never launch mpv without Lumen's child
-    // surface, because that would expose mpv's separate interface.
+    // Embedded playback is mandatory. MPV starts hidden and is only shown
+    // after its render layer has been adopted and positioned by Lumen.
     if (!mpv.canEmbed()) throw new Error('mpv-embed-required')
-    const wid = await createSurface()
-    if (!wid) throw new Error('mpv-surface-unavailable')
+    destroySurface()
     try {
-      await mpv.load(path, { ...opts, wid, ytdlpPath: isUrl ? ytdlp.detect().ytdlp ?? undefined : undefined })
-      // Embedding steals focus to mpv's surface; give it back to Lumen so the
-      // keyboard shortcuts and control bar stay live.
+      const videoWid = await mpv.load(path, {
+        ...opts,
+        ytdlpPath: isUrl ? ytdlp.detect().ytdlp ?? undefined : undefined
+      })
+      if (!(await createSurface(videoWid))) throw new Error('mpv-surface-unavailable')
+      // The render layer never activates, but explicitly restore Lumen focus
+      // so keyboard shortcuts and its own controls remain authoritative.
       const w = win()
       if (!w.isDestroyed()) {
         w.focus()
@@ -159,6 +165,7 @@ export function registerIpc(deps: IpcDeps): void {
       }
       return { embedded: true }
     } catch (e) {
+      mpv.stop()
       destroySurface()
       throw e
     }
