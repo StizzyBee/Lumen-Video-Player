@@ -53,7 +53,11 @@ export function streamTitle(url: string): string {
 }
 
 /** Synthetic LibraryItem for a stream. Never persisted; id marks it as such. */
-export function makeStreamItem(url: string, title?: string): LibraryItem {
+export function makeStreamItem(url: string, title?: string, knownExt?: string): LibraryItem {
+  // Together stream URLs intentionally contain only a random token, not the
+  // host's filename. Carry the extension from the room snapshot so engine
+  // selection still knows that an MP4/WebM can use Chromium without mpv.
+  const ext = knownExt?.toLowerCase().replace(/^\./, '') || streamExt(url)
   return {
     id: `${STREAM_ID_PREFIX}${url}`,
     path: url,
@@ -61,7 +65,7 @@ export function makeStreamItem(url: string, title?: string): LibraryItem {
     // A watch-party stream knows the real film name; a URL alone does not.
     title: title || streamTitle(url),
     folder: '',
-    ext: streamExt(url),
+    ext,
     sizeBytes: 0,
     mtimeMs: 0,
     addedAt: Date.now(),

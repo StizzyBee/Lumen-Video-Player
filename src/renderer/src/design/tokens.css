@@ -28,6 +28,10 @@
   --z-titlebar: 40; --z-player-chrome: 30; --z-popover: 60;
   --z-dialog: 70; --z-palette: 80; --z-toast: 90; --z-drop: 100;
 
+  /* ── Player side rails ── */
+  --w-queue-drawer: 320px;
+  --w-together-panel: 340px;
+
   /* ── Accent (overridden at runtime by the theme engine) ── */
   --accent: #6c8cff;
   --on-accent: #ffffff;

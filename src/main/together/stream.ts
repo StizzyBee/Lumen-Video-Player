@@ -44,6 +44,7 @@ export function makeToken(): string {
 
 export async function describeSource(path: string, token = makeToken()): Promise<StreamSource> {
   const stat = await fsp.stat(path)
+  if (!stat.isFile() || stat.size <= 0) throw new Error('stream-source-invalid')
   const ext = extname(path).slice(1).toLowerCase()
   return {
     token,

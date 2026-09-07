@@ -25,7 +25,7 @@ import {
   setPlaybackIntercept,
   usePlayer
 } from './player'
-import { makeStreamItem } from '@/core/streams'
+import { isStreamItem, makeStreamItem } from '@/core/streams'
 import { useLibrary } from './library'
 import { useSettings } from './settings'
 import { useUi } from './ui'
@@ -197,6 +197,14 @@ export const useTogether = create<TogetherStore>((set, get) => ({
     const item = usePlayer.getState().item
     if (mode === 'stream' && !item) {
       useUi.getState().toast({ kind: 'warn', title: 'Open the video you want to share first' })
+      return
+    }
+    if (mode === 'stream' && item && isStreamItem(item)) {
+      useUi.getState().toast({
+        kind: 'warn',
+        title: 'Open a video from your PC to share it',
+        desc: 'A web stream cannot be re-shared. Download it first, then start the room from the saved file.'
+      })
       return
     }
     const { memberId, displayName } = ensureIdentity()
@@ -489,7 +497,7 @@ function ensureStreamSource(room: RoomSnapshot): void {
   const player = usePlayer.getState()
   if (player.item?.path === url) return
 
-  player.openItem(makeStreamItem(url, room.stream.title), { queue: [] })
+  player.openItem(makeStreamItem(url, room.stream.title, room.stream.ext), { queue: [] })
 }
 
 /**

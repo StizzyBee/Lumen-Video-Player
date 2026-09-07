@@ -301,7 +301,10 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.on('update:install', () => installUpdate())
 
   // ── together (synchronized watch parties) ─────────────────────────────────
-  const stopTogether = registerTogetherIpc({ win })
+  const stopTogether = registerTogetherIpc({
+    win,
+    isStreamPathAllowed: (path) => pathGuard.isAllowed(path)
+  })
   app.on('will-quit', stopTogether)
 
   // ── window ────────────────────────────────────────────────────────────────

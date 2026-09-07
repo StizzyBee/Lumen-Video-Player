@@ -15,7 +15,7 @@
 - **Watch together** (`Ctrl+Shift+W`) — watch the same film with friends anywhere in the world, locked to the same frame. Either everyone plays their own copy, or one person shares theirs and the rest watch it straight from their PC — no copy needed. Drift is corrected by nudging the playback rate rather than seeking, so the audio never clicks or slips. Anyone can pause; the room can vote to resume, or to take pause and seek off someone for 5/10/60 minutes. NAT is handled with one-click ZeroTier or Tailscale setup from inside the app. See [docs/TOGETHER.md](docs/TOGETHER.md).
 - **Command palette** (`Ctrl+Shift+P`) and fully customizable keyboard shortcuts.
 - **Subtitle studio** — external SRT/VTT with live-styled rendering: font, size, color, outline, shadow, background, position, delay.
-- **Private by design** — no telemetry, no ads, no account, fully offline.
+- **Private by design** — no telemetry, no ads, and no account. Your library and playback stay local; the packaged app only checks GitHub for an available update.
 
 ## Status
 
@@ -29,8 +29,8 @@ This repository is under active development. See [docs/ROADMAP.md](docs/ROADMAP.
 | Subtitles (external, styled), speed, loop, screenshots | ✅ Shipped |
 | Command palette, shortcuts, settings, playlists | ✅ Shipped |
 | Watch together (synchronized watch parties) | ✅ Shipped |
-| Windows installer (`release/Lumen-Setup-0.3.0.exe`) | ✅ Shipped |
-| Full-codec native engine (mpv: MKV/HEVC/all formats) | 🔜 Planned (M4) |
+| Windows installer (`release/Lumen-Setup-0.4.1.exe`) | ✅ Shipped |
+| Full-codec engine (mpv: MKV/HEVC/all formats) | ✅ Shipped |
 | Clip export, GIF capture (ffmpeg) | 🔜 Planned (M5) |
 | Plugin SDK | 🔜 Planned (M6) |
 
@@ -70,4 +70,4 @@ docs/
 
 ## Privacy
 
-Lumen makes **zero network requests** by default. There is no telemetry, no crash reporting, no update phone-home, no account. Your library index, thumbnails, and settings live in local app data and never leave your machine.
+Lumen has no telemetry, crash reporting, ads, or account. Your library index, thumbnails, settings, and playback history live in local app data and never leave your machine. The packaged app checks this repository for a newer release at startup; it never downloads or installs an update until you choose to.

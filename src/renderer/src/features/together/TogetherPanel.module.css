@@ -6,8 +6,12 @@
   top: 0;
   right: 0;
   bottom: 0;
-  width: 340px;
-  z-index: var(--z-player-chrome);
+  width: var(--w-together-panel);
+  /* Sit above the player's draggable title strip while remaining below the
+     real window title bar. Electron otherwise treats the visible close button
+     as part of the underlying drag region and swallows its click. */
+  z-index: calc(var(--z-player-chrome) + 1);
+  -webkit-app-region: no-drag;
   background: rgba(14, 14, 20, 0.86);
   backdrop-filter: blur(24px) saturate(1.4);
   box-shadow: -12px 0 40px rgba(0, 0, 0, 0.35), inset 1px 0 0 rgba(255, 255, 255, 0.08);

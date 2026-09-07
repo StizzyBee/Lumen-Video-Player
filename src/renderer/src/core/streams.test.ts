@@ -44,4 +44,11 @@ describe('stream items', () => {
     expect(isStreamItem(item)).toBe(true)
     expect(isStreamItem({ id: 'abc123' })).toBe(false)
   })
+
+  it('carries the host extension when a Together URL has only a token', () => {
+    const url = `http://host:7345/stream/${'a'.repeat(32)}`
+    const item = makeStreamItem(url, 'Shared film', '.MP4')
+    expect(item.title).toBe('Shared film')
+    expect(item.ext).toBe('mp4')
+  })
 })

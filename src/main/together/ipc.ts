@@ -11,6 +11,7 @@ import { describeSource } from './stream'
 
 export interface TogetherDeps {
   win: () => BrowserWindow
+  isStreamPathAllowed(path: string): boolean
 }
 
 interface HostOptions {
@@ -52,6 +53,10 @@ export function registerTogetherIpc(deps: TogetherDeps): () => void {
     stopRelay()
     client.disconnect(false)
 
+    if (opts.streamPath && !deps.isStreamPathAllowed(opts.streamPath)) {
+      throw new Error('That video is not available to share.')
+    }
+
     const roomId = makeRoomCode()
     const port = opts.port && opts.port > 0 ? opts.port : DEFAULT_PORT
     // Bind on every interface: the entire point of hosting is that somebody
@@ -64,28 +69,34 @@ export function registerTogetherIpc(deps: TogetherDeps): () => void {
       streamTitle: opts.streamTitle,
       streamDurationSec: opts.streamDurationSec
     })
-    const started = await relay.start()
+    try {
+      const started = await relay.start()
 
-    // A streaming room registers exactly one file, addressed by a random
-    // token. Nothing else on disk is reachable through the relay.
-    let stream: { guestPlayable: boolean; ext: string } | null = null
-    if (opts.streamPath) {
-      const source = await describeSource(opts.streamPath)
-      relay.setStreamSource(source, started.roomId)
-      stream = { guestPlayable: source.guestPlayable, ext: source.ext }
+      // A streaming room registers exactly one file, addressed by a random
+      // token. Nothing else on disk is reachable through the relay.
+      let stream: { guestPlayable: boolean; ext: string } | null = null
+      if (opts.streamPath) {
+        const source = await describeSource(opts.streamPath)
+        relay.setStreamSource(source, started.roomId)
+        stream = { guestPlayable: source.guestPlayable, ext: source.ext }
+      }
+
+      client.connect({
+        // The host talks to its own relay over loopback, so its clock estimate
+        // costs nothing and is near-exact. Everyone else measures against it.
+        url: `ws://127.0.0.1:${started.port}`,
+        roomId: started.roomId,
+        memberId: opts.memberId,
+        name: opts.name || 'Host',
+        content: opts.content
+      })
+
+      return { roomId: started.roomId, port: started.port, addresses: scanAddresses(), stream }
+    } catch (error) {
+      client.disconnect(false)
+      stopRelay()
+      throw error
     }
-
-    client.connect({
-      // The host talks to its own relay over loopback, so its clock estimate
-      // costs nothing and is near-exact. Everyone else measures against it.
-      url: `ws://127.0.0.1:${started.port}`,
-      roomId: started.roomId,
-      memberId: opts.memberId,
-      name: opts.name || 'Host',
-      content: opts.content
-    })
-
-    return { roomId: started.roomId, port: started.port, addresses: scanAddresses(), stream }
   })
 
   ipcMain.handle('together:join', async (_e, opts: JoinOptions) => {
