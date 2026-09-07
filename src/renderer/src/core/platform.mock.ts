@@ -291,6 +291,11 @@ export function createMockLumen(): LumenApi {
     },
     app: {
       version: async () => '0.1.0-web',
+      identity: async () => ({
+        schema: 1,
+        memberId: settings.together.memberId || 'm-browser-demo',
+        lumenId: 'LMN-1'
+      }),
       platform: 'browser',
       getOpenedFile: async () => null,
       onOpenFile: () => () => {},

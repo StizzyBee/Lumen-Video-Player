@@ -10,6 +10,7 @@ import { registerIpc } from './ipc'
 import { needsCompatibilityRenderer } from './mpv/renderer'
 import { mergeSettings, VIDEO_EXTENSIONS, type Playlist, type Settings } from '@shared/types'
 import { cleanupStaleUpdateCache } from './update-cleanup'
+import { InstallationIdentityStore } from './identity'
 
 app.setName('Lumen')
 
@@ -62,8 +63,16 @@ async function bootstrap(): Promise<void> {
   const thumbsDir = join(userData, 'thumbs')
 
   const settings = new JsonStore<Settings>(join(userData, 'settings.json'), mergeSettings(null))
-  // Migrate forward: unknown fields dropped, missing fields defaulted
-  settings.set(mergeSettings(settings.get()))
+  // Keep install identity separate from preferences. Updates replace binaries,
+  // not userData, so the private key and assigned LMN number survive upgrades.
+  const migratedSettings = mergeSettings(settings.get())
+  const identity = new InstallationIdentityStore(
+    join(userData, 'identity.json'),
+    migratedSettings.together.memberId
+  )
+  migratedSettings.together.memberId = identity.get().memberId
+  settings.set(migratedSettings)
+  await identity.flush()
 
   const playlists = new JsonStore<{ items: Playlist[] }>(join(userData, 'playlists.json'), { items: [] })
   const library = new Library(userData)
@@ -101,7 +110,8 @@ async function bootstrap(): Promise<void> {
     thumbsDir,
     openedFile,
     mpvCompatibilityRenderer: () => mpvCompatibilityRenderer,
-    surfaceHostPath
+    surfaceHostPath,
+    identity
   })
   startupTrace('ipc registered')
 

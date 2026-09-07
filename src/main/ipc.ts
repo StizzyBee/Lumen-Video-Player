@@ -23,6 +23,7 @@ import { YtdlpManager } from './ytdlp/manager'
 import { registerTogetherIpc } from './together/ipc'
 import { checkForUpdate, downloadUpdate, installUpdate, registerUpdater } from './updater'
 import { wingetInstall } from './winget'
+import type { InstallationIdentityStore } from './identity'
 
 export interface IpcDeps {
   win: BrowserWindow
@@ -33,6 +34,7 @@ export interface IpcDeps {
   openedFile: string | null
   mpvCompatibilityRenderer: () => boolean
   surfaceHostPath: string
+  identity: InstallationIdentityStore
 }
 
 export function registerIpc(deps: IpcDeps): void {
@@ -304,6 +306,7 @@ export function registerIpc(deps: IpcDeps): void {
   // ── together (synchronized watch parties) ─────────────────────────────────
   const stopTogether = registerTogetherIpc({
     win,
+    identity: deps.identity,
     isStreamPathAllowed: (path) => pathGuard.isAllowed(path)
   })
   app.on('will-quit', stopTogether)
@@ -413,6 +416,7 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.handle('shell:read-clipboard', () => clipboard.readText())
 
   ipcMain.handle('app:version', () => app.getVersion())
+  ipcMain.handle('app:get-identity', () => deps.identity.get())
   ipcMain.handle('app:get-opened-file', () => deps.openedFile)
 
   let blockerId: number | null = null

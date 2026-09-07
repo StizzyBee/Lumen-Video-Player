@@ -38,7 +38,9 @@ short-lived room address and the recipient's Accept/Decline response.
 The relay assigns `LMN-1`, `LMN-2`, and so on in first-seen order and keeps the
 mapping in `data/invite-registry.json`. Set `LUMEN_INVITE_REGISTRY` to use a
 different file. A number is global only when every public Lumen installation
-uses the same authoritative relay.
+uses the same authoritative relay. Each player caches the assigned number and
+its private install key in `%APPDATA%\Lumen\identity.json`, so an application
+update or temporary relay outage does not make the ID disappear or change.
 
 ## Behind a reverse proxy
 

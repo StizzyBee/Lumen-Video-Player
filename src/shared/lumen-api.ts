@@ -5,6 +5,7 @@ import type { UpdateEvent } from './updates'
 import type {
   ColorAdjust,
   DownloadProgress,
+  InstallationIdentity,
   LibraryItem,
   LibraryState,
   Playlist,
@@ -219,6 +220,8 @@ export interface LumenApi {
   }
   app: {
     version(): Promise<string>
+    /** Stable identity loaded from the install's persistent identity file. */
+    identity(): Promise<InstallationIdentity>
     readonly platform: 'win32' | 'browser'
     /** File passed via CLI/file-association at launch, if any */
     getOpenedFile(): Promise<string | null>

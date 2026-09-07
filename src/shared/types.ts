@@ -162,6 +162,15 @@ export interface TogetherSettings {
   recentPlayers: Array<{ id: string; name: string }>
 }
 
+/** Durable, install-scoped identity stored in %APPDATA%/Lumen/identity.json. */
+export interface InstallationIdentity {
+  schema: 1
+  /** Private stable key used by the relay to recover the same public number. */
+  memberId: string
+  /** Short relay-assigned number, cached locally after first registration. */
+  lumenId: string
+}
+
 export type LibrarySort =
   | 'addedAt'
   | 'lastPlayedAt'

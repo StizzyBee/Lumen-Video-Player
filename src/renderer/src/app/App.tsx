@@ -34,7 +34,7 @@ function boot(): void {
   if (booted) return
   booted = true
   setupCommands()
-  void useSettings.getState().init()
+  const settingsReady = useSettings.getState().init()
   void usePlayer.getState().detectMpv()
   void useDownloads.getState().init()
   void useLibrary.getState().init().then(() => kickThumbnailQueue())
@@ -42,7 +42,9 @@ function boot(): void {
     if (s.items !== prev.items) kickThumbnailQueue()
   })
   useUi.getState().init()
-  useTogether.getState().init()
+  // Together depends on the stable install identity loaded with settings.
+  // Starting it against defaults could create a different identity each run.
+  void settingsReady.then(() => useTogether.getState().init())
 
   // File opened via CLI / double-click file association
   void platform.app.getOpenedFile().then((p) => {

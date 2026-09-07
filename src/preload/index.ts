@@ -119,6 +119,7 @@ const api: LumenApi = {
   },
   app: {
     version: () => ipcRenderer.invoke('app:version'),
+    identity: () => ipcRenderer.invoke('app:get-identity'),
     platform: 'win32',
     getOpenedFile: () => ipcRenderer.invoke('app:get-opened-file'),
     onOpenFile: (cb) => on('app:open-file', cb),

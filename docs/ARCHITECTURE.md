@@ -107,6 +107,7 @@ Persistence is deliberately boring: JSON documents with atomic writes (write tem
 
 ```
 %APPDATA%/lumen/
+  identity.json      stable private install key + cached public Lumen ID
   settings.json      user preferences (schema below)
   library.json       LibraryItem[] + folder list + revision
   playlists.json     saved playlists

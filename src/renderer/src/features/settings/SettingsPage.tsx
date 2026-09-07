@@ -605,7 +605,7 @@ export function SettingsPage(): ReactNode {
             <input
               className={styles.textInput}
               value={lumenId}
-              placeholder="Assigned when the relay connects"
+              placeholder="Assigned on the first invitation-relay connection"
               readOnly
               aria-label="Your Lumen ID"
             />

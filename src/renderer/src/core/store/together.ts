@@ -153,10 +153,9 @@ function configureInviteConnection(set: (partial: Partial<TogetherStore>) => voi
   inviteConfigKey = key
   if (!url) {
     platform.together.invites.disconnect()
-    set({ inviteStatus: 'disabled', lumenId: '' })
+    set({ inviteStatus: 'disabled' })
     return
   }
-  set({ lumenId: '' })
   platform.together.invites.configure({ url, memberId, name: displayName })
 }
 
@@ -262,7 +261,10 @@ export const useTogether = create<TogetherStore>((set, get) => ({
         syncInviteConnection()
       }
     })
-    syncInviteConnection()
+    void platform.app.identity().then((identity) => {
+      set({ lumenId: identity.lumenId })
+      syncInviteConnection()
+    }).catch(syncInviteConnection)
   },
 
   async host(mode = 'library') {

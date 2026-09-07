@@ -9,9 +9,11 @@ import { InviteClient } from './invite-client'
 import { TogetherRelay } from './relay'
 import { installMesh, joinZeroTier, meshStatus, scanAddresses } from './mesh'
 import { describeSource } from './stream'
+import type { InstallationIdentityStore } from '../identity'
 
 export interface TogetherDeps {
   win: () => BrowserWindow
+  identity: InstallationIdentityStore
   isStreamPathAllowed(path: string): boolean
 }
 
@@ -45,6 +47,9 @@ export function registerTogetherIpc(deps: TogetherDeps): () => void {
     if (!win.isDestroyed()) win.webContents.send('together:event', e)
   })
   const inviteClient = new InviteClient((e) => {
+    if (e.type === 'status' && e.status === 'online' && e.lumenId) {
+      deps.identity.rememberLumenId(e.lumenId)
+    }
     const win = deps.win()
     if (!win.isDestroyed()) {
       win.webContents.send('together:invite-event', e)
