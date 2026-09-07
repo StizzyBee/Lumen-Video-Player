@@ -30,6 +30,27 @@ function leaveAndGo(view: Parameters<ReturnType<typeof useUi.getState>['navigate
   ui().navigate(view)
 }
 
+/**
+ * The watch-party panel lives inside the player, so it cannot open with
+ * nothing playing. Say so plainly — a shortcut that appears to do nothing is
+ * how someone concludes the feature is broken.
+ */
+function openTogether(action: 'panel' | 'host'): void {
+  if (!player().item) {
+    ui().toast(
+      {
+        kind: 'info',
+        title: 'Open a video first',
+        desc: 'Start the film you want to watch, then press Ctrl+Shift+W to host a room or join one.'
+      },
+      5000
+    )
+    return
+  }
+  if (action === 'host') void useTogether.getState().host()
+  else useTogether.getState().setPanelOpen(!useTogether.getState().panelOpen)
+}
+
 export function setupCommands(): void {
   registerCommands([
     // ── Watch together ──────────────────────────────────────────────────────
@@ -38,7 +59,7 @@ export function setupCommands(): void {
       title: 'Watch together: open the panel',
       category: 'Together',
       keywords: ['watch', 'party', 'sync', 'friends', 'room'],
-      run: () => useTogether.getState().setPanelOpen(!useTogether.getState().panelOpen)
+      run: () => openTogether('panel')
     },
     {
       id: 'together.help',
@@ -52,7 +73,7 @@ export function setupCommands(): void {
       title: 'Watch together: host a room',
       category: 'Together',
       keywords: ['watch', 'party', 'invite', 'start'],
-      run: () => void useTogether.getState().host()
+      run: () => openTogether('host')
     },
     {
       id: 'together.leave',
