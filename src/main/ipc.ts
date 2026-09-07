@@ -20,6 +20,7 @@ import { hasWinget, installMpvViaWinget } from './mpv/install'
 import { supportsEmbed } from './mpv/locate'
 import { NativeSurfaceHost } from './mpv/surface'
 import { YtdlpManager } from './ytdlp/manager'
+import { registerTogetherIpc } from './together/ipc'
 import { wingetInstall } from './winget'
 
 export interface IpcDeps {
@@ -291,6 +292,10 @@ export function registerIpc(deps: IpcDeps): void {
     destroySurface()
     ytdlp.stopAll()
   })
+
+  // ── together (synchronized watch parties) ─────────────────────────────────
+  const stopTogether = registerTogetherIpc({ win })
+  app.on('will-quit', stopTogether)
 
   // ── window ────────────────────────────────────────────────────────────────
   ipcMain.on('win:minimize', () => win().minimize())

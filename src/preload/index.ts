@@ -79,6 +79,25 @@ const api: LumenApi = {
     cancel: (id) => ipcRenderer.send('dl:cancel', id),
     onProgress: (cb) => on('dl:progress', cb)
   },
+  together: {
+    host: (opts) => ipcRenderer.invoke('together:host', opts),
+    join: (opts) => ipcRenderer.invoke('together:join', opts),
+    leave: () => ipcRenderer.send('together:leave'),
+    intent: (kind, mediaTime, rate) => ipcRenderer.send('together:intent', kind, mediaTime, rate),
+    report: (data) => ipcRenderer.send('together:report', data),
+    setContent: (content) => ipcRenderer.send('together:content', content),
+    callVote: (kind, targetId, durationMs) => ipcRenderer.send('together:call-vote', kind, targetId, durationMs),
+    vote: (ballotId, choice) => ipcRenderer.send('together:vote', ballotId, choice),
+    onEvent: (cb) => on('together:event', cb),
+    mesh: {
+      status: () => ipcRenderer.invoke('together:mesh-status'),
+      hasWinget: () => ipcRenderer.invoke('mpv:has-winget'),
+      install: (provider) => ipcRenderer.invoke('together:mesh-install', provider),
+      onInstallProgress: (cb) => on('together:mesh-progress', cb),
+      joinZeroTier: (networkId) => ipcRenderer.invoke('together:mesh-join', networkId),
+      openSetup: (provider) => ipcRenderer.send('together:mesh-setup', provider)
+    }
+  },
   shell: {
     showInFolder: (path) => ipcRenderer.send('shell:show-in-folder', path),
     saveScreenshot: (pngDataUrl, suggestedName) =>

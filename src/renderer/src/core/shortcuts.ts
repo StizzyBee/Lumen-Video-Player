@@ -43,6 +43,7 @@ export const DEFAULT_KEYMAP: Record<string, string> = {
   'app.search': 'Ctrl+K',
   'app.searchAlt': 'Ctrl+F',
   'app.playlistDrawer': 'Ctrl+B',
+  'together.panel': 'Ctrl+Shift+W',
   'app.settings': 'Ctrl+,',
   'app.back': 'Escape',
   'nav.home': 'Ctrl+1',

@@ -11,3 +11,6 @@ Thumbs.db
 .vite/
 coverage/
 resources/surface/*.exe
+
+# Third-party reference checkout, not part of Lumen
+Synclify/

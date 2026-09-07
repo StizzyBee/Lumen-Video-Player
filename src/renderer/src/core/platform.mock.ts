@@ -233,6 +233,31 @@ export function createMockLumen(): LumenApi {
       cancel: () => {},
       onProgress: () => () => {}
     },
+    together: {
+      // Watch parties need a real socket, which a browser tab cannot open to
+      // an arbitrary host. The mock keeps the UI mountable and inert.
+      host: async () => {
+        throw new Error('watch parties need the desktop app')
+      },
+      join: async () => {
+        throw new Error('watch parties need the desktop app')
+      },
+      leave: () => {},
+      intent: () => {},
+      report: () => {},
+      setContent: () => {},
+      callVote: () => {},
+      vote: () => {},
+      onEvent: () => () => {},
+      mesh: {
+        status: async () => ({ addresses: [], installed: [], ready: false }),
+        hasWinget: async () => false,
+        install: async () => ({ ok: false, reason: 'no-winget' }),
+        onInstallProgress: () => () => {},
+        joinZeroTier: async () => ({ ok: false, reason: 'not-installed' }),
+        openSetup: () => {}
+      }
+    },
     shell: {
       showInFolder: () => {},
       saveScreenshot: async (dataUrl, name) => {

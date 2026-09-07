@@ -135,7 +135,26 @@ export interface Settings {
     librarySort: LibrarySort
     showExtensions: boolean
   }
+  together: TogetherSettings
   shortcuts: Record<string, string>
+}
+
+export interface TogetherSettings {
+  /** Stable identity for this install, so a reconnect keeps your seat. */
+  memberId: string
+  /** Shown to the other watchers. */
+  displayName: string
+  /**
+   * Your personal audio latency, in ms. Bluetooth headphones commonly add
+   * 150-300ms of output delay: the room is in sync, but *your* sound lands
+   * late. Positive values run your picture that much ahead so the audio
+   * arrives on the beat with everyone else.
+   */
+  audioOffsetMs: number
+  /** Last relay used, so joining again is one click. */
+  lastRelayUrl: string
+  /** Port the built-in relay listens on when you host. */
+  hostPort: number
 }
 
 export type LibrarySort =
@@ -237,6 +256,14 @@ export const DEFAULT_SETTINGS: Settings = {
     libraryView: 'grid',
     librarySort: 'addedAt',
     showExtensions: false
+  },
+  together: {
+    // Filled in on first run; a blank id would collide across installs.
+    memberId: '',
+    displayName: '',
+    audioOffsetMs: 0,
+    lastRelayUrl: '',
+    hostPort: 7345
   },
   shortcuts: {}
 }

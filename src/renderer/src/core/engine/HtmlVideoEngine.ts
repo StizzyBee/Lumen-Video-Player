@@ -60,6 +60,10 @@ export class HtmlVideoEngine implements PlaybackEngine {
     const v = document.createElement('video')
     v.playsInline = true
     v.preload = 'auto'
+    // Correct playback rate without shifting pitch. Chromium defaults this on,
+    // but Together leans on it hard — it nudges the rate a few percent to hold
+    // sync, and that must never be audible as a change in voices.
+    v.preservesPitch = true
     v.style.cssText = 'width:100%;height:100%;object-fit:contain;background:transparent;display:block;'
     this.video = v
     this.wireEvents()

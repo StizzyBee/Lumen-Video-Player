@@ -3,7 +3,7 @@ import {
   Play, Pause, SkipBack, SkipForward, Volume2, Volume1, VolumeX, Maximize, Minimize,
   Captions, Repeat, Repeat1, PictureInPicture2, GalleryVerticalEnd, MoreHorizontal,
   Camera, Activity, AudioLines, ListVideo, PanelRightClose, FilePlus2, RotateCcw, RotateCw, Bookmark,
-  MonitorCog, Sun
+  MonitorCog, Sun, Users
 } from 'lucide-react'
 import { availableResolutions, DEFAULT_COLOR } from '@/core/video'
 import type { ColorAdjust } from '@shared/types'
@@ -11,6 +11,7 @@ import { usePlayer } from '@/core/store/player'
 import { useLibrary } from '@/core/store/library'
 import { useSettings } from '@/core/store/settings'
 import { useUi } from '@/core/store/ui'
+import { useTogether } from '@/core/store/together'
 import { IconButton } from '@/components/ui/IconButton'
 import { Slider } from '@/components/ui/Slider'
 import { Menu, anchorFromElement, type MenuAnchor, type MenuEntry } from '@/components/ui/Menu'
@@ -90,6 +91,9 @@ export function ControlsBar({ onMenuOpenChange }: { onMenuOpenChange: (open: boo
   const patch = useSettings((s) => s.patch)
   const ui = useUi()
   const mini = useUi((s) => s.miniMode)
+  const togetherPanelOpen = useTogether((s) => s.panelOpen)
+  const togetherCount = useTogether((s) => s.room?.members.length ?? 0)
+  const togetherActive = togetherCount > 0
 
   const [menu, setMenu] = useState<OpenMenu>(null)
   const [anchor, setAnchor] = useState<MenuAnchor | null>(null)
@@ -396,6 +400,16 @@ export function ControlsBar({ onMenuOpenChange }: { onMenuOpenChange: (open: boo
 
             <IconButton onVideo label="Queue" kbd="Ctrl+B" active={ui.playlistDrawerOpen} onClick={() => ui.setPlaylistDrawer(!ui.playlistDrawerOpen)}>
               <ListVideo size={19} />
+            </IconButton>
+
+            <IconButton
+              onVideo
+              label={togetherActive ? `Watch party · ${togetherCount}` : 'Watch together'}
+              kbd="Ctrl+Shift+W"
+              active={togetherPanelOpen || togetherActive}
+              onClick={() => useTogether.getState().setPanelOpen(!togetherPanelOpen)}
+            >
+              <Users size={19} />
             </IconButton>
 
             {!onMpv && (

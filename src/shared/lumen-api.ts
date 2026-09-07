@@ -1,3 +1,5 @@
+import type { ContentRef, TogetherEvent } from './together/api'
+import type { MeshProvider, MeshStatus, NetAddress } from './together/mesh'
 import type {
   ColorAdjust,
   DownloadProgress,
@@ -122,6 +124,54 @@ export interface LumenApi {
     start(url: string): Promise<{ id: string }>
     cancel(id: string): void
     onProgress(cb: (e: DownloadProgress) => void): Unsubscribe
+  }
+  /**
+   * Together: synchronized watch parties. The relay socket lives in main so
+   * the renderer keeps its hands off the network, and so the clock estimate is
+   * not measured on a thread busy compositing video.
+   */
+  together: {
+    /** Start the built-in relay and join it. Resolves with what to share. */
+    host(opts: { name: string; memberId: string; content: ContentRef | null; port?: number }): Promise<{
+      roomId: string
+      port: number
+      /** Addresses to hand a friend, most-likely-to-work first. */
+      addresses: NetAddress[]
+    }>
+    /** Join a room on someone else's relay. */
+    join(opts: {
+      url: string
+      roomId: string
+      name: string
+      memberId: string
+      content: ContentRef | null
+    }): Promise<void>
+    leave(): void
+    /** Ask the room to change the timeline. The relay decides; it may refuse. */
+    intent(kind: 'play' | 'pause' | 'seek' | 'rate', mediaTime: number, rate?: number): void
+    /** Heartbeat carrying this watcher's readiness and measured drift. */
+    report(data: { ready: boolean; bufferedAhead: number; mediaTime: number; driftMs: number }): void
+    setContent(content: ContentRef): void
+    callVote(kind: 'resume' | 'revoke', targetId?: string, durationMs?: number): void
+    vote(ballotId: string, choice: 'yes' | 'no'): void
+    onEvent(cb: (e: TogetherEvent) => void): Unsubscribe
+    /**
+     * Mesh VPN support — the answer to NAT, and so to watching together from
+     * different continents without anyone touching a router.
+     */
+    mesh: {
+      /** What is installed, and which addresses currently reach the world. */
+      status(): Promise<MeshStatus>
+      /** Windows Package Manager present? Gates the one-click install offer. */
+      hasWinget(): Promise<boolean>
+      /** Install ZeroTier or Tailscale from its official source via winget. */
+      install(provider: 'zerotier' | 'tailscale'): Promise<{ ok: boolean; reason?: string }>
+      onInstallProgress(cb: (line: string) => void): Unsubscribe
+      /** Join a ZeroTier network by id. Prompts for elevation. */
+      joinZeroTier(networkId: string): Promise<{ ok: boolean; reason?: string }>
+      /** Open the provider's sign-up / network page in the browser. */
+      openSetup(provider: MeshProvider): void
+    }
   }
   shell: {
     showInFolder(path: string): void

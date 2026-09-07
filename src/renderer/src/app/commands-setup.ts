@@ -5,6 +5,7 @@ import { usePlayer } from '@/core/store/player'
 import { useSettings } from '@/core/store/settings'
 import { useUi } from '@/core/store/ui'
 import { useLibrary } from '@/core/store/library'
+import { useTogether } from '@/core/store/together'
 
 const player = (): ReturnType<typeof usePlayer.getState> => usePlayer.getState()
 const ui = (): ReturnType<typeof useUi.getState> => useUi.getState()
@@ -31,6 +32,40 @@ function leaveAndGo(view: Parameters<ReturnType<typeof useUi.getState>['navigate
 
 export function setupCommands(): void {
   registerCommands([
+    // ── Watch together ──────────────────────────────────────────────────────
+    {
+      id: 'together.panel',
+      title: 'Watch together: open the panel',
+      category: 'Together',
+      keywords: ['watch', 'party', 'sync', 'friends', 'room'],
+      run: () => useTogether.getState().setPanelOpen(!useTogether.getState().panelOpen)
+    },
+    {
+      id: 'together.host',
+      title: 'Watch together: host a room',
+      category: 'Together',
+      keywords: ['watch', 'party', 'invite', 'start'],
+      run: () => void useTogether.getState().host()
+    },
+    {
+      id: 'together.leave',
+      title: 'Watch together: leave the room',
+      category: 'Together',
+      when: () => useTogether.getState().isActive(),
+      run: () => useTogether.getState().leave()
+    },
+    {
+      id: 'together.voteResume',
+      title: 'Watch together: vote to resume',
+      category: 'Together',
+      keywords: ['unpause', 'vote', 'resume'],
+      when: () => {
+        const t = useTogether.getState()
+        return t.isActive() && !!t.room?.timeline.paused && t.room.timeline.pausedBy !== t.meId
+      },
+      run: () => useTogether.getState().callResumeVote()
+    },
+
     // ── Playback ────────────────────────────────────────────────────────────
     { id: 'playback.toggle', title: 'Play / Pause', category: 'Playback', when: inPlayer, run: () => player().togglePlay() },
     { id: 'playback.toggleK', title: 'Play / Pause (K)', category: 'Playback', hidden: true, when: inPlayer, run: () => player().togglePlay() },

@@ -16,6 +16,7 @@ import { useLibrary } from '@/core/store/library'
 import { usePlayer } from '@/core/store/player'
 import { useDownloads } from '@/core/store/downloads'
 import { useUi } from '@/core/store/ui'
+import { useTogether } from '@/core/store/together'
 import { setupCommands } from './commands-setup'
 import { executeCommand } from '@/core/commands'
 import { bindingFromEvent, resolveKeymap } from '@/core/shortcuts'
@@ -39,6 +40,7 @@ function boot(): void {
     if (s.items !== prev.items) kickThumbnailQueue()
   })
   useUi.getState().init()
+  useTogether.getState().init()
 
   // File opened via CLI / double-click file association
   void platform.app.getOpenedFile().then((p) => {

@@ -205,6 +205,70 @@ function runEndAction(get: () => PlayerStore): void {
   }
 }
 
+
+/**
+ * Together's seam into playback. While a watch party is running, the user's
+ * play/pause/seek/rate actions become *requests to the room* rather than local
+ * commands — the relay decides, and the timeline comes back to everyone at
+ * once. A handler returning true means it took ownership of the action.
+ */
+export interface PlaybackIntercept {
+  play(): boolean
+  pause(): boolean
+  seek(sec: number): boolean
+  rate(r: number): boolean
+  /** False while the room decides when playback starts. */
+  autoplay(): boolean
+}
+
+let intercept: PlaybackIntercept | null = null
+
+export function setPlaybackIntercept(next: PlaybackIntercept | null): void {
+  intercept = next
+}
+
+// ── Raw engine access, for the sync controller only ────────────────────────
+// These bypass the intercept on purpose: they are how Together *applies* the
+// room's decisions. Routing them back through the intercept would loop.
+
+export function rawPlay(): void {
+  if (usePlayer.getState().mpvMode === 'playing') platform.mpv.playPause(false)
+  else engine?.play()
+}
+
+export function rawPause(): void {
+  if (usePlayer.getState().mpvMode === 'playing') platform.mpv.playPause(true)
+  else engine?.pause()
+}
+
+export function rawSeek(sec: number): void {
+  const target = Math.max(0, sec)
+  if (usePlayer.getState().mpvMode === 'playing') {
+    platform.mpv.seek(target)
+    usePlayer.setState({ time: target })
+    return
+  }
+  engine?.seek(target)
+  usePlayer.setState({ time: target })
+}
+
+/**
+ * Set the true playback rate without touching the rate the UI displays. A
+ * drift nudge is machinery, not a user choice: showing 1.02x in the speed menu
+ * every time the controller corrects would be noise.
+ */
+export function rawSetEffectiveRate(rate: number): void {
+  if (usePlayer.getState().mpvMode === 'playing') platform.mpv.setRate(rate)
+  else engine?.setRate(rate)
+}
+
+/** The engine's own clock, not the throttled copy in the store. */
+export function rawPosition(): number {
+  const s = usePlayer.getState()
+  if (s.mpvMode === 'playing') return s.time
+  return engine?.currentTime() ?? s.time
+}
+
 export const usePlayer = create<PlayerStore>((set, get) => ({
   item: null,
   queue: [],
@@ -471,7 +535,7 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
 
     // Streams play their URL directly; local files go through lumen://
     const src = isStreamItem(item) ? item.path : platform.media.url(item.path)
-    void e.load(src, { startAt, autoplay: true })
+    void e.load(src, { startAt, autoplay: intercept ? intercept.autoplay() : true })
     e.setRate(settings.playback.defaultRate)
     get().applyAudioSettings()
     get().applyVideoSettings()
@@ -553,6 +617,12 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
 
   togglePlay() {
     const s = get()
+    if (intercept) {
+      // In a room, the play/pause key asks the room. What actually happens to
+      // this player is decided by the timeline that comes back.
+      const wantPause = s.status === 'playing'
+      if (wantPause ? intercept.pause() : intercept.play()) return
+    }
     if (s.mpvMode === 'playing') {
       const paused = s.status === 'playing'
       platform.mpv.playPause(paused)
@@ -567,14 +637,17 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
     } else engine.play()
   },
   play() {
+    if (intercept?.play()) return
     if (get().mpvMode === 'playing') return platform.mpv.playPause(false)
     engine?.play()
   },
   pause() {
+    if (intercept?.pause()) return
     if (get().mpvMode === 'playing') return platform.mpv.playPause(true)
     engine?.pause()
   },
   seekTo(sec) {
+    if (intercept?.seek(sec)) return
     if (get().mpvMode === 'playing') {
       platform.mpv.seek(sec)
       set({ time: sec })
@@ -588,6 +661,7 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
     get().seekTo(s.time + sec)
   },
   setRate(r) {
+    if (intercept?.rate(r)) return
     if (get().mpvMode === 'playing') {
       platform.mpv.setRate(r)
       set({ rate: r })

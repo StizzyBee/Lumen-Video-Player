@@ -7,6 +7,7 @@ import {
 import { usePlayer } from '@/core/store/player'
 import { useSettings } from '@/core/store/settings'
 import { useUi } from '@/core/store/ui'
+import { useTogether } from '@/core/store/together'
 import { platform, isDesktop } from '@/core/platform'
 import { HTML5_CONTAINERS } from '@/core/engine/select'
 import { isStreamItem } from '@/core/streams'
@@ -16,6 +17,7 @@ import { ControlsBar } from './ControlsBar'
 import { SubtitleLayer } from './SubtitleLayer'
 import { StatsOverlay } from './StatsOverlay'
 import { PlaylistDrawer } from './PlaylistDrawer'
+import { TogetherPanel } from '@/features/together/TogetherPanel'
 import styles from './PlayerView.module.css'
 
 const HIDE_DELAY = 2800
@@ -27,6 +29,8 @@ export function PlayerView(): ReactNode {
   const patchSettings = useSettings((s) => s.patch)
   // mpv rendering inside Lumen's own window (vs mpv's separate window)
   const embeddedMpv = p.mpvMode === 'playing' && p.mpvEmbedded
+
+  const togetherOpen = useTogether((s) => s.panelOpen)
 
   const [chromeVisible, setChromeVisible] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -454,6 +458,7 @@ export function PlayerView(): ReactNode {
       </div>
 
       <AnimatePresence>{ui.playlistDrawerOpen && !mini && <PlaylistDrawer />}</AnimatePresence>
+      <AnimatePresence>{togetherOpen && !mini && <TogetherPanel />}</AnimatePresence>
     </motion.div>
   )
 }
