@@ -413,7 +413,7 @@ export function SettingsPage(): ReactNode {
               <AccentPicker />
             </div>
           )}
-          <Row query={q} label="Window material" desc="Mica lets the desktop subtly tint the window (Windows 11)">
+          <Row query={q} label="Window material" desc="Mica lets the desktop subtly tint the window (Windows 11 22H2+)">
             <div style={{ display: 'flex', gap: 6 }}>
               {(['mica', 'acrylic', 'solid'] as const).map((m) => (
                 <Button key={m} size="sm" variant={s.theme.material === m ? 'accentSoft' : 'ghost'} onClick={() => patch({ theme: { material: m } })}>

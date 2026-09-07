@@ -22,6 +22,12 @@
   box-shadow: inset 0 0 0 1px var(--stroke);
 }
 
+/* Leave enough of the native Windows backdrop visible to make the selected
+   material apparent while retaining a distinct content layer over it. */
+:global(html[data-material]) .main {
+  background: var(--bg-material-content);
+}
+
 /* Full-bleed page container inside the animated view host */
 .page {
   position: absolute;

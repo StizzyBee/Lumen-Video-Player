@@ -14,7 +14,7 @@ import {
 } from '@shared/types'
 import type { DeepPartial } from '@shared/lumen-api'
 import { pathGuard, mediaUrl } from './protocol'
-import { setMiniMode } from './window'
+import { setMiniMode, setWindowMaterial } from './window'
 import { MpvManager } from './mpv/manager'
 import { hasWinget, installMpvViaWinget } from './mpv/install'
 import { supportsEmbed } from './mpv/locate'
@@ -373,6 +373,7 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.handle('settings:patch', (_e, patch: DeepPartial<Settings>) => {
     const merged = mergeSettings(deepMerge(settings.get(), patch))
     settings.set(merged)
+    setWindowMaterial(win(), merged.theme.material)
     for (const w of BrowserWindow.getAllWindows()) w.webContents.send('settings:changed', merged)
     return merged
   })

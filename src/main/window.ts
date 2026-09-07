@@ -1,15 +1,14 @@
 import { BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
 import { release } from 'node:os'
+import { resolveNativeWindowMaterial, supportsWindowMaterial } from './window-material'
 
 // ESM main process: __dirname is unavailable
 const HERE = import.meta.dirname
 import type { WindowMaterial } from '@shared/types'
 
-const isWin11 = (() => {
-  const build = parseInt(release().split('.')[2] ?? '0', 10)
-  return process.platform === 'win32' && build >= 22000
-})()
+const osRelease = release()
+const canUseWindowMaterial = supportsWindowMaterial(process.platform, osRelease)
 
 export interface MiniModeState {
   active: boolean
@@ -19,6 +18,7 @@ export interface MiniModeState {
 export const miniState: MiniModeState = { active: false }
 
 export function createMainWindow(material: WindowMaterial): BrowserWindow {
+  const nativeMaterial = resolveNativeWindowMaterial(material, process.platform, osRelease)
   const win = new BrowserWindow({
     width: 1320,
     height: 860,
@@ -26,8 +26,11 @@ export function createMainWindow(material: WindowMaterial): BrowserWindow {
     minHeight: 320,
     show: false,
     frame: false,
-    backgroundColor: '#101014',
-    ...(isWin11 && material !== 'solid' ? { backgroundMaterial: material } : {}),
+    // Keep the compositor transparent on supported Windows builds so Mica or
+    // Acrylic can be switched on later without recreating the entire window.
+    transparent: canUseWindowMaterial,
+    backgroundColor: nativeMaterial === 'none' ? '#101014' : '#00000000',
+    ...(canUseWindowMaterial ? { backgroundMaterial: nativeMaterial } : {}),
     webPreferences: {
       preload: join(HERE, '../preload/index.cjs'),
       sandbox: true,
@@ -59,6 +62,14 @@ export function createMainWindow(material: WindowMaterial): BrowserWindow {
     void win.loadFile(join(HERE, '../renderer/index.html'))
   }
   return win
+}
+
+/** Apply a saved material immediately; `solid` maps to Electron's `none`. */
+export function setWindowMaterial(win: BrowserWindow, material: WindowMaterial): void {
+  if (!canUseWindowMaterial || win.isDestroyed()) return
+  const nativeMaterial = resolveNativeWindowMaterial(material, process.platform, osRelease)
+  win.setBackgroundMaterial(nativeMaterial)
+  win.setBackgroundColor(nativeMaterial === 'none' ? '#101014' : '#00000000')
 }
 
 export function setMiniMode(win: BrowserWindow, on: boolean): void {
