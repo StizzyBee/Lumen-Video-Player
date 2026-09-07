@@ -217,23 +217,51 @@ function StartPanel({ onShowGuide }: { onShowGuide: () => void }): ReactNode {
   const settings = useSettings((s) => s.settings.together)
   const clipboardInvite = useTogether((s) => s.clipboardInvite)
   const checkClipboard = useTogether((s) => s.checkClipboard)
+  const status = useTogether((s) => s.status)
   const [invite, setInvite] = useState(settings.lastRelayUrl)
   const [busy, setBusy] = useState(false)
 
   // Someone who was just sent an invite almost certainly has it on the
-  // clipboard. Offering it directly turns joining into a single click.
+  // clipboard. Keep this live while the join screen is open: checking only on
+  // mount left an old room on the button after somebody copied a newer code.
   useEffect(() => {
-    void checkClipboard()
+    let checking = false
+    const refresh = async (): Promise<void> => {
+      if (checking) return
+      checking = true
+      try {
+        await checkClipboard()
+      } finally {
+        checking = false
+      }
+    }
+    const onFocus = (): void => void refresh()
+    const onVisibility = (): void => {
+      if (document.visibilityState === 'visible') void refresh()
+    }
+
+    void refresh()
+    const timer = window.setInterval(() => void refresh(), 750)
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
   }, [checkClipboard])
 
   // One field: the invite token carries both the address and the room code, so
   // there is no way to get one right and the other wrong.
   const parsed = parseInvite(invite)
 
-  const join = async (): Promise<void> => {
+  const connecting = busy || status === 'connecting' || status === 'reconnecting'
+
+  const join = async (rawInvite = invite): Promise<void> => {
+    if (connecting) return
     setBusy(true)
     try {
-      if (!(await together.joinInvite(invite))) {
+      if (!(await together.joinInvite(rawInvite))) {
         useUi.getState().toast(
           {
             kind: 'warn',
@@ -243,6 +271,15 @@ function StartPanel({ onShowGuide }: { onShowGuide: () => void }): ReactNode {
           5000
         )
       }
+    } catch (error) {
+      useUi.getState().toast(
+        {
+          kind: 'warn',
+          title: 'Could not join that room',
+          desc: error instanceof Error ? error.message : String(error)
+        },
+        5000
+      )
     } finally {
       setBusy(false)
     }
@@ -270,15 +307,10 @@ function StartPanel({ onShowGuide }: { onShowGuide: () => void }): ReactNode {
           <code className={styles.clipCode}>{clipboardInvite.roomId}</code>
           <Button
             variant="primary"
-            disabled={busy}
-            onClick={() => {
-              setBusy(true)
-              void together
-                .join(clipboardInvite.url, clipboardInvite.roomId)
-                .finally(() => setBusy(false))
-            }}
+            disabled={connecting}
+            onClick={() => void join(`${clipboardInvite.url}#${clipboardInvite.roomId}`)}
           >
-            {busy ? 'Joining…' : `Join room ${clipboardInvite.roomId}`}
+            {connecting ? 'Connecting…' : `Join room ${clipboardInvite.roomId}`}
           </Button>
         </div>
       )}
@@ -323,14 +355,14 @@ function StartPanel({ onShowGuide }: { onShowGuide: () => void }): ReactNode {
           spellCheck={false}
           onChange={(e) => setInvite(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && parsed) void join()
+            if (e.key === 'Enter' && parsed) void join(invite)
           }}
         />
         {invite.trim() && !parsed && (
           <div className={styles.hintWarn}>Paste the whole invite, including the code after the #.</div>
         )}
-        <Button variant="subtle" disabled={!parsed || busy} onClick={() => void join()}>
-          {busy ? 'Joining…' : parsed ? `Join room ${parsed.roomId}` : 'Join'}
+        <Button variant="subtle" disabled={!parsed || connecting} onClick={() => void join(invite)}>
+          {connecting ? 'Connecting…' : parsed ? `Join room ${parsed.roomId}` : 'Join'}
         </Button>
       </div>
 

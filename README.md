@@ -29,7 +29,7 @@ This repository is under active development. See [docs/ROADMAP.md](docs/ROADMAP.
 | Subtitles (external, styled), speed, loop, screenshots | ✅ Shipped |
 | Command palette, shortcuts, settings, playlists | ✅ Shipped |
 | Watch together (synchronized watch parties) | ✅ Shipped |
-| Windows installer (`release/Lumen-Setup-0.4.1.exe`) | ✅ Shipped |
+| Windows installer (`release/Lumen-Setup-0.4.2.exe`) | ✅ Shipped |
 | Full-codec engine (mpv: MKV/HEVC/all formats) | ✅ Shipped |
 | Clip export, GIF capture (ffmpeg) | 🔜 Planned (M5) |
 | Plugin SDK | 🔜 Planned (M6) |

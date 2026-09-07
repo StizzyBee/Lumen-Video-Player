@@ -67,6 +67,19 @@ async function startRelay(): Promise<{ url: string; roomId: string }> {
 }
 
 describe('relay end to end', () => {
+  it('reports connected only after the room accepts the invite', async () => {
+    const { url, roomId } = await startRelay()
+    const ana = makeClient(url, roomId, 'ana', 'Ana')
+
+    await until(() => ana.room() !== null)
+    const connecting = ana.events.findIndex((e) => e.type === 'status' && e.status === 'connecting')
+    const connected = ana.events.findIndex((e) => e.type === 'status' && e.status === 'connected')
+    const room = ana.events.findIndex((e) => e.type === 'room')
+    expect(connecting).toBeGreaterThanOrEqual(0)
+    expect(connected).toBeGreaterThan(connecting)
+    expect(room).toBeGreaterThan(connected)
+  })
+
   it('puts two watchers on one timeline', async () => {
     const { url, roomId } = await startRelay()
     const ana = makeClient(url, roomId, 'ana', 'Ana')

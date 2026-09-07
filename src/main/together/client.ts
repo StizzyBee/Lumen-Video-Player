@@ -82,7 +82,6 @@ export class TogetherClient {
     this.socket = socket
 
     socket.on('open', () => {
-      this.attempts = 0
       // The clock estimate belongs to this connection. A reconnect may land on
       // a different relay entirely, so carrying the old offset over would put
       // us confidently on the wrong timeline.
@@ -97,7 +96,6 @@ export class TogetherClient {
         content: this.lastContent
       })
       this.startPinging()
-      this.emit({ type: 'status', status: 'connected' })
     })
 
     socket.on('message', (raw) => {
@@ -139,6 +137,18 @@ export class TogetherClient {
         break
       }
       case 'welcome':
+        // A socket being open only proves that a server answered. The room has
+        // accepted our invite only once Welcome arrives.
+        this.attempts = 0
+        this.emit({ type: 'status', status: 'connected' })
+        this.emit({
+          type: 'room',
+          room: msg.room,
+          clockOffsetMs: this.clock.offsetMs,
+          rttMs: this.clock.rttMs,
+          settled: this.clock.settled
+        })
+        break
       case 'room':
         this.emit({
           type: 'room',

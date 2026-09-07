@@ -110,6 +110,8 @@ let lastMatchAttempt = ''
 /** Previous readiness answer — the hysteresis that stops threshold flapping. */
 let lastReported = false
 let unsubEvent: (() => void) | null = null
+/** Newer clipboard reads supersede older IPC responses. */
+let clipboardCheckSeq = 0
 
 /** A stable-ish identity for this install, created once and persisted. */
 function ensureIdentity(): { memberId: string; displayName: string } {
@@ -288,6 +290,10 @@ export const useTogether = create<TogetherStore>((set, get) => ({
       useUi.getState().toast({ kind: 'warn', title: 'That address does not look right' })
       return
     }
+    // Hide the suggestion immediately and invalidate a clipboard read that
+    // may still be in flight while this connection starts.
+    clipboardCheckSeq++
+    set({ clipboardInvite: null })
     await platform.together.join({
       url: normalized,
       roomId: code,
@@ -311,10 +317,13 @@ export const useTogether = create<TogetherStore>((set, get) => ({
     // No desktop gate: the browser mock answers safely, so this stays
     // exercisable in dev:web instead of being dead code outside Electron.
     if (get().room) return
+    const seq = ++clipboardCheckSeq
     try {
       const text = await platform.shell.readClipboardText()
+      if (seq !== clipboardCheckSeq || get().room) return
       set({ clipboardInvite: parseInvite(text) })
     } catch {
+      if (seq !== clipboardCheckSeq || get().room) return
       set({ clipboardInvite: null })
     }
   },
