@@ -3,6 +3,7 @@ import { platform, isDesktop } from '@/core/platform'
 import type { RoomSnapshot, TogetherStatus } from '@shared/together/api'
 import { contentRefFor } from '@shared/together/api'
 import {
+  contentMatches,
   isRestricted,
   isRollingAt,
   positionAt,
@@ -25,6 +26,7 @@ import {
   usePlayer
 } from './player'
 import { makeStreamItem } from '@/core/streams'
+import { useLibrary } from './library'
 import { useSettings } from './settings'
 import { useUi } from './ui'
 
@@ -103,6 +105,8 @@ let reporter: number | null = null
 let driftState: DriftState = initialDriftState()
 let lastAppliedEpoch = -1
 let lastReportedContentKey = ''
+/** Room content we have already tried to open, so a miss is reported once. */
+let lastMatchAttempt = ''
 /** Previous readiness answer — the hysteresis that stops threshold flapping. */
 let lastReported = false
 let unsubEvent: (() => void) | null = null
@@ -168,6 +172,7 @@ export const useTogether = create<TogetherStore>((set, get) => ({
             clockSettled: e.settled
           })
           ensureStreamSource(e.room)
+          ensureLibraryMatch(e.room)
           applyTimeline(e.room)
           break
         case 'denied':
@@ -487,6 +492,51 @@ function ensureStreamSource(room: RoomSnapshot): void {
   player.openItem(makeStreamItem(url, room.stream.title), { queue: [] })
 }
 
+/**
+ * Open whatever the room is watching, from this machine's own library.
+ *
+ * Joining used to drop you into the panel with the wrong film — or none —
+ * still loaded, leaving you to go and find it by hand while everyone waited.
+ * The room already says what it is watching, and matching is the same title +
+ * runtime rule used to spot a mismatched copy.
+ */
+function ensureLibraryMatch(room: RoomSnapshot): void {
+  // A streaming room supplies the video itself; nothing to look up.
+  if (room.stream || !room.content) return
+
+  const wanted = room.content
+  const player = usePlayer.getState()
+
+  // Already watching the right thing — never yank a correct file out.
+  const current = player.item
+    ? contentRefFor(player.item.title, usePlayer.getState().duration || player.item.durationSec || 0)
+    : null
+  if (current && contentMatches(current, wanted)) return
+
+  // One attempt per film, so a room we cannot match does not nag every second.
+  if (lastMatchAttempt === wanted.key) return
+  lastMatchAttempt = wanted.key
+
+  const match = useLibrary
+    .getState()
+    .items.find((item) =>
+      contentMatches(contentRefFor(item.title, item.durationSec ?? 0), wanted)
+    )
+
+  if (match) {
+    player.openItem(match, { queue: [] })
+    return
+  }
+  useUi.getState().toast(
+    {
+      kind: 'warn',
+      title: `Open your copy of "${wanted.title}"`,
+      desc: 'It is not in your library, so Lumen could not load it for you.'
+    },
+    8000
+  )
+}
+
 // ── The controller ──────────────────────────────────────────────────────────
 
 /**
@@ -614,6 +664,7 @@ function startController(): void {
   driftState = initialDriftState()
   lastAppliedEpoch = -1
   lastReportedContentKey = ''
+  lastMatchAttempt = ''
   lastReported = false
 
   // Every user action becomes a request to the room. Nothing is applied

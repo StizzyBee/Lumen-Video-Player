@@ -53,6 +53,8 @@ export function PlaylistDrawer(): ReactNode {
       exit={{ x: 340, opacity: 0, transition: { duration: 0.18 } }}
       transition={springSoft}
       aria-label="Queue"
+      /* Same as the watch-party panel: clicks here are chrome, not video. */
+      data-controls
     >
       <div className={styles.drawerHead}>
         <span className={styles.drawerTitle}>Queue · {items.length}</span>

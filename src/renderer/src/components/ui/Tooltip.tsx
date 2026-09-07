@@ -3,6 +3,7 @@ import {
   isValidElement,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ReactElement,
@@ -25,6 +26,22 @@ export function Tooltip({ label, kbd, side = 'top', delay = 500, children }: Too
   const [pos, setPos] = useState<{ x: number; y: number; side: 'top' | 'bottom' } | null>(null)
   const timer = useRef<number | null>(null)
   const anchor = useRef<HTMLElement | null>(null)
+  const tip = useRef<HTMLDivElement | null>(null)
+
+  /**
+   * Pull the tooltip back inside the window. It is centred on its trigger and
+   * never wraps, so a long label on a button near an edge — the revoke button
+   * at the right of the watch-party panel, say — runs off screen and the end
+   * of the sentence is simply unreadable.
+   */
+  useLayoutEffect(() => {
+    const el = tip.current
+    if (!pos || !el) return
+    const margin = 8
+    const half = el.offsetWidth / 2
+    const clamped = Math.min(Math.max(pos.x, margin + half), window.innerWidth - margin - half)
+    if (Math.abs(clamped - pos.x) > 0.5) setPos({ ...pos, x: clamped })
+  }, [pos])
 
   const show = useCallback(() => {
     const el = anchor.current
@@ -76,6 +93,7 @@ export function Tooltip({ label, kbd, side = 'top', delay = 500, children }: Too
         <AnimatePresence>
           {pos && (
             <motion.div
+              ref={tip}
               className={styles.tip}
               initial={{ opacity: 0, scale: 0.92, y: pos.side === 'top' ? 4 : -4 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}

@@ -258,6 +258,13 @@ export function createMockLumen(): LumenApi {
         openSetup: () => {}
       }
     },
+    updates: {
+      // Nothing to update in a browser tab.
+      check: async () => {},
+      download: async () => {},
+      install: () => {},
+      onEvent: () => () => {}
+    },
     shell: {
       showInFolder: () => {},
       readClipboardText: async () => {

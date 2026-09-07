@@ -98,6 +98,12 @@ const api: LumenApi = {
       openSetup: (provider) => ipcRenderer.send('together:mesh-setup', provider)
     }
   },
+  updates: {
+    check: () => ipcRenderer.invoke('update:check'),
+    download: () => ipcRenderer.invoke('update:download'),
+    install: () => ipcRenderer.send('update:install'),
+    onEvent: (cb) => on('update:event', cb)
+  },
   shell: {
     showInFolder: (path) => ipcRenderer.send('shell:show-in-folder', path),
     readClipboardText: () => ipcRenderer.invoke('shell:read-clipboard'),

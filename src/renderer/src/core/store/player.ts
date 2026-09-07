@@ -180,6 +180,16 @@ function persistPosition(s: PlayerStore): void {
  */
 function runEndAction(get: () => PlayerStore): void {
   const s = get()
+
+  // In a watch party the film ends for everyone at once and the room decides
+  // what happens next. Rolling on into somebody's own queue would silently
+  // take them out of sync — and if the video is being streamed from another
+  // watcher, the "next" file is not even something the others can see.
+  if (intercept) {
+    if (s.mpvMode === 'playing') usePlayer.setState({ status: 'ended' })
+    return
+  }
+
   const action = decideEndAction({
     loop: s.loop,
     queueIndex: s.queueIndex,

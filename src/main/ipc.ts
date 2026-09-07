@@ -21,6 +21,7 @@ import { supportsEmbed } from './mpv/locate'
 import { NativeSurfaceHost } from './mpv/surface'
 import { YtdlpManager } from './ytdlp/manager'
 import { registerTogetherIpc } from './together/ipc'
+import { checkForUpdate, downloadUpdate, installUpdate, registerUpdater } from './updater'
 import { wingetInstall } from './winget'
 
 export interface IpcDeps {
@@ -292,6 +293,12 @@ export function registerIpc(deps: IpcDeps): void {
     destroySurface()
     ytdlp.stopAll()
   })
+
+  // ── updates ───────────────────────────────────────────────────────────────
+  registerUpdater({ win })
+  ipcMain.handle('update:check', () => checkForUpdate())
+  ipcMain.handle('update:download', () => downloadUpdate())
+  ipcMain.on('update:install', () => installUpdate())
 
   // ── together (synchronized watch parties) ─────────────────────────────────
   const stopTogether = registerTogetherIpc({ win })

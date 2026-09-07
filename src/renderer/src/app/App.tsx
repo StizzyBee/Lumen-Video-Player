@@ -11,6 +11,7 @@ import { PlayerView } from '@/features/player/PlayerView'
 import { CommandPalette } from '@/features/palette/CommandPalette'
 import { UrlDialog } from '@/features/downloads/UrlDialog'
 import { DownloadsTray } from '@/features/downloads/DownloadsTray'
+import { UpdatePrompt } from './UpdatePrompt'
 import { useSettings } from '@/core/store/settings'
 import { useLibrary } from '@/core/store/library'
 import { usePlayer } from '@/core/store/player'
@@ -137,6 +138,7 @@ export function App(): ReactNode {
       <CommandPalette />
       <UrlDialog />
       <DownloadsTray />
+      <UpdatePrompt />
       <ContextMenuHost />
       <ConfirmHost />
       <ToastHost />

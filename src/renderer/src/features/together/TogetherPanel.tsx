@@ -597,6 +597,10 @@ export function TogetherPanel(): ReactNode {
       exit={{ x: 360, opacity: 0, transition: { duration: 0.18 } }}
       transition={springSoft}
       aria-label="Watch party"
+      /* The player treats any click it receives as play/pause. Without this the
+         panel is transparent to that: clicking its text, or even dragging a
+         slider, toggles the video underneath. */
+      data-controls
     >
       <div className={styles.head}>
         <Users size={16} />

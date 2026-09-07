@@ -1,5 +1,6 @@
 import type { ContentRef, TogetherEvent } from './together/api'
 import type { MeshProvider, MeshStatus, NetAddress } from './together/mesh'
+import type { UpdateEvent } from './updates'
 import type {
   ColorAdjust,
   DownloadProgress,
@@ -183,6 +184,16 @@ export interface LumenApi {
       /** Open the provider's sign-up / network page in the browser. */
       openSetup(provider: MeshProvider): void
     }
+  }
+  /** Self-update from the project's GitHub releases. Never acts unasked. */
+  updates: {
+    /** Look for a newer release. Resolves whether or not one exists. */
+    check(): Promise<void>
+    /** Fetch the installer. Only after the user has agreed. */
+    download(): Promise<void>
+    /** Quit and run the downloaded installer. */
+    install(): void
+    onEvent(cb: (e: UpdateEvent) => void): Unsubscribe
   }
   shell: {
     showInFolder(path: string): void
