@@ -249,6 +249,13 @@ export function createMockLumen(): LumenApi {
       callVote: () => {},
       vote: () => {},
       onEvent: () => () => {},
+      invites: {
+        configure: () => {},
+        disconnect: () => {},
+        send: () => {},
+        respond: () => {},
+        onEvent: () => () => {}
+      },
       mesh: {
         status: async () => ({ addresses: [], installed: [], ready: false }),
         hasWinget: async () => false,

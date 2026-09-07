@@ -5,6 +5,7 @@ import { ipcMain, shell, type BrowserWindow } from 'electron'
 import { DEFAULT_PORT, makeRoomCode, type ContentRef } from '@shared/together/protocol'
 import { MESH_PROVIDERS, type MeshProvider } from '@shared/together/mesh'
 import { TogetherClient } from './client'
+import { InviteClient } from './invite-client'
 import { TogetherRelay } from './relay'
 import { installMesh, joinZeroTier, meshStatus, scanAddresses } from './mesh'
 import { describeSource } from './stream'
@@ -42,6 +43,17 @@ export function registerTogetherIpc(deps: TogetherDeps): () => void {
   const client = new TogetherClient((e) => {
     const win = deps.win()
     if (!win.isDestroyed()) win.webContents.send('together:event', e)
+  })
+  const inviteClient = new InviteClient((e) => {
+    const win = deps.win()
+    if (!win.isDestroyed()) {
+      win.webContents.send('together:invite-event', e)
+      if (e.type === 'incoming') {
+        if (win.isMinimized()) win.restore()
+        win.show()
+        win.flashFrame(true)
+      }
+    }
   })
 
   const stopRelay = (): void => {
@@ -137,6 +149,27 @@ export function registerTogetherIpc(deps: TogetherDeps): () => void {
     client.vote(ballotId, choice)
   })
 
+  // ── call-style invitations ────────────────────────────────────────────────
+  ipcMain.on('together:invite-configure', (_e, opts: { url: string; memberId: string; name: string }) => {
+    if (!opts.url) {
+      inviteClient.disconnect()
+      return
+    }
+    inviteClient.configure(opts)
+  })
+  ipcMain.on(
+    'together:invite-send',
+    (_e, opts: { toId: string; invite: string; roomId: string; title: string; mode: 'library' | 'stream' }) => {
+      inviteClient.sendInvite(opts)
+    }
+  )
+  ipcMain.on('together:invite-respond', (_e, inviteId: string, accept: boolean) => {
+    const win = deps.win()
+    if (!win.isDestroyed()) win.flashFrame(false)
+    inviteClient.respond(inviteId, accept)
+  })
+  ipcMain.on('together:invite-disconnect', () => inviteClient.disconnect())
+
   // ── mesh VPN (how a watch party crosses NAT) ──────────────────────────────
   ipcMain.handle('together:mesh-status', () => meshStatus())
 
@@ -158,6 +191,7 @@ export function registerTogetherIpc(deps: TogetherDeps): () => void {
   // Never leave a relay listening or a socket open after Lumen exits.
   return () => {
     client.disconnect(false)
+    inviteClient.disconnect(false)
     stopRelay()
   }
 }

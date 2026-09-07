@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   Palette, Play, AudioLines, Captions, Keyboard, FolderCog, ShieldCheck,
-  FolderPlus, Trash2, RefreshCw, RotateCcw, MonitorCog, Users
+  FolderPlus, Trash2, RefreshCw, RotateCcw, MonitorCog, Users, Copy, Check
 } from 'lucide-react'
 import { availableResolutions, DEFAULT_COLOR } from '@/core/video'
 import type { ColorAdjust } from '@shared/types'
@@ -9,6 +9,7 @@ import { useSettings } from '@/core/store/settings'
 import { useLibrary } from '@/core/store/library'
 import { useUi } from '@/core/store/ui'
 import { usePlayer } from '@/core/store/player'
+import { useTogether } from '@/core/store/together'
 import { platform, isDesktop } from '@/core/platform'
 import { Switch } from '@/components/ui/Switch'
 import { Slider } from '@/components/ui/Slider'
@@ -360,10 +361,12 @@ export function SettingsPage(): ReactNode {
   const locateMpv = usePlayer((st) => st.locateMpv)
   const installMpv = usePlayer((st) => st.installMpv)
   const mpvInstalling = usePlayer((st) => st.mpvInstalling)
+  const lumenId = useTogether((st) => st.lumenId)
   const [query, setQuery] = useState('')
   const [fontMenu, setFontMenu] = useState<MenuAnchor | null>(null)
   const [version, setVersion] = useState('')
   const [hdrDisplay, setHdrDisplay] = useState(false)
+  const [idCopied, setIdCopied] = useState(false)
 
   useEffect(() => {
     void platform.app.version().then(setVersion)
@@ -595,6 +598,25 @@ export function SettingsPage(): ReactNode {
         <Section id="together" label="Watch together" icon={<Users size={16} />}>
           <Row
             query={q}
+            label="Your Lumen ID"
+            desc="Give this ID to someone so they can ring your player. It stays with this Lumen installation."
+            wide
+          >
+            <input className={styles.textInput} value={lumenId} readOnly aria-label="Your Lumen ID" />
+            <IconButton
+              label="Copy Lumen ID"
+              onClick={() => {
+                if (!lumenId) return
+                void navigator.clipboard.writeText(lumenId)
+                setIdCopied(true)
+                window.setTimeout(() => setIdCopied(false), 1600)
+              }}
+            >
+              {idCopied ? <Check size={16} /> : <Copy size={16} />}
+            </IconButton>
+          </Row>
+          <Row
+            query={q}
             label="Your name"
             desc="How you appear to the other watchers"
             wide
@@ -626,6 +648,25 @@ export function SettingsPage(): ReactNode {
               {s.together.audioOffsetMs > 0 ? '+' : ''}
               {s.together.audioOffsetMs} ms
             </span>
+          </Row>
+          <Row
+            query={q}
+            label="Invitation relay"
+            desc="An always-on Together relay both players use for call-style invitations. Leave blank to turn player invitations off."
+            wide
+          >
+            <input
+              key={s.together.inviteRelayUrl}
+              className={styles.textInput}
+              defaultValue={s.together.inviteRelayUrl}
+              placeholder="wss://together.example.com"
+              spellCheck={false}
+              aria-label="Invitation relay address"
+              onBlur={(e) => patch({ together: { inviteRelayUrl: e.target.value.trim() } })}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.currentTarget.blur()
+              }}
+            />
           </Row>
           <Row
             query={q}
@@ -671,7 +712,7 @@ export function SettingsPage(): ReactNode {
         </Section>
 
         <Section id="privacy" label="Privacy & About" icon={<ShieldCheck size={16} />}>
-          <Row query={q} label="Telemetry" desc="There is none. Lumen makes zero network requests — no analytics, no update pings, no accounts.">
+          <Row query={q} label="Telemetry" desc="There is none. Lumen sends no analytics and has no accounts; network features run only when you configure or use them.">
             <Switch ariaLabel="Telemetry (permanently off)" checked={false} onChange={() => {}} disabled />
           </Row>
           <Row query={q} label="Your display" desc="Detected output capability for HDR content">

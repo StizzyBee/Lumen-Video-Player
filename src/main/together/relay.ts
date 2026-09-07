@@ -6,8 +6,19 @@
 // small always-on box in the middle than open a port at home.
 
 import { createServer, type Server as HttpServer } from 'node:http'
+import { randomBytes } from 'node:crypto'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { serveStream, type StreamSource } from './stream'
+import {
+  WATCH_INVITE_PROTOCOL,
+  WATCH_INVITE_TTL_MS,
+  lumenIdFromMemberId,
+  normalizeLumenId,
+  type InviteClientMessage,
+  type InviteServerMessage,
+  type WatchInvite
+} from '@shared/together/invites'
+import { parseInvite } from '@shared/together/mesh'
 import {
   MEMBER_TIMEOUT_MS,
   REJOIN_GRACE_MS,
@@ -41,6 +52,20 @@ interface Connection {
   lastSeen: number
 }
 
+interface InviteConnection {
+  socket: WebSocket
+  memberId: string
+  lumenId: string
+  name: string
+  lastSeen: number
+}
+
+interface PendingInvite {
+  invite: WatchInvite
+  from: InviteConnection
+  to: InviteConnection
+}
+
 export interface RelayOptions {
   port: number
   host?: string
@@ -60,6 +85,9 @@ export class TogetherRelay {
   private source: StreamSource | null = null
   private rooms = new Map<string, RoomState>()
   private connections = new Map<WebSocket, Connection>()
+  private inviteConnections = new Map<WebSocket, InviteConnection>()
+  private inviteDirectory = new Map<string, InviteConnection>()
+  private pendingInvites = new Map<string, PendingInvite>()
   private pending = new Map<string, NodeJS.Timeout>()
   private timer: NodeJS.Timeout | null = null
   private opts: RelayOptions
@@ -117,7 +145,9 @@ export class TogetherRelay {
       })
       this.http = http
 
-      const wss = new WebSocketServer({ server: http })
+      // Every valid control/invitation message is tiny. Cap frames so a public
+      // relay cannot be used as a memory sink by an unauthenticated client.
+      const wss = new WebSocketServer({ server: http, maxPayload: 16 * 1024 })
       this.wss = wss
       wss.on('error', (err) => console.error('[together] relay error', err))
       wss.on('connection', (socket) => this.onConnection(socket))
@@ -149,6 +179,12 @@ export class TogetherRelay {
       }
     }
     this.connections.clear()
+    for (const socket of this.inviteConnections.keys()) {
+      try { socket.close(1001, 'relay stopping') } catch { /* already gone */ }
+    }
+    this.inviteConnections.clear()
+    this.inviteDirectory.clear()
+    this.pendingInvites.clear()
     this.wss?.close()
     this.wss = null
     this.http?.close()
@@ -158,21 +194,116 @@ export class TogetherRelay {
 
   private onConnection(socket: WebSocket): void {
     socket.on('message', (raw) => {
-      let msg: ClientMessage
+      let msg: ClientMessage | InviteClientMessage
       try {
-        msg = JSON.parse(String(raw)) as ClientMessage
+        msg = JSON.parse(String(raw)) as ClientMessage | InviteClientMessage
       } catch {
         this.send(socket, { t: 'error', code: 'malformed', message: 'Could not read that message.' })
         return
       }
       try {
-        this.handle(socket, msg)
+        if (typeof msg.t === 'string' && msg.t.startsWith('invite:')) this.handleInvite(socket, msg as InviteClientMessage)
+        else this.handle(socket, msg as ClientMessage)
       } catch (err) {
         console.error('[together] handler failed', err)
       }
     })
     socket.on('close', () => this.onClose(socket))
     socket.on('error', () => this.onClose(socket))
+  }
+
+  private handleInvite(socket: WebSocket, msg: InviteClientMessage): void {
+    const now = Date.now()
+    if (msg.t === 'invite:register') {
+      if (msg.protocol !== WATCH_INVITE_PROTOCOL) {
+        this.sendInvite(socket, { t: 'invite:error', message: 'Update Lumen to use player invitations.' })
+        socket.close()
+        return
+      }
+      const lumenId = lumenIdFromMemberId(String(msg.memberId ?? ''))
+      const key = normalizeLumenId(lumenId)
+      if (!key || key.length < 10 || key.length > 20) {
+        this.sendInvite(socket, { t: 'invite:error', message: 'That Lumen ID is not valid.' })
+        socket.close()
+        return
+      }
+
+      const existing = this.inviteDirectory.get(key)
+      if (existing && existing.socket !== socket) {
+        this.removeInviteConnection(existing.socket)
+        try { existing.socket.close(1000, 'replaced') } catch { /* already gone */ }
+      }
+      const conn: InviteConnection = {
+        socket,
+        memberId: msg.memberId,
+        lumenId,
+        name: String(msg.name || 'Watcher').slice(0, 24),
+        lastSeen: now
+      }
+      this.inviteConnections.set(socket, conn)
+      this.inviteDirectory.set(key, conn)
+      this.sendInvite(socket, { t: 'invite:ready', lumenId })
+      return
+    }
+
+    const sender = this.inviteConnections.get(socket)
+    if (!sender) {
+      this.sendInvite(socket, { t: 'invite:error', message: 'Register this Lumen player first.' })
+      return
+    }
+    sender.lastSeen = now
+
+    if (msg.t === 'invite:heartbeat') {
+      this.sendInvite(socket, { t: 'invite:pong' })
+      return
+    }
+
+    if (msg.t === 'invite:send') {
+      const targetKey = normalizeLumenId(String(msg.toId ?? ''))
+      const target = this.inviteDirectory.get(targetKey)
+      if (!target || target.socket.readyState !== target.socket.OPEN) {
+        this.sendInvite(socket, { t: 'invite:delivery', toId: msg.toId, state: 'offline' })
+        return
+      }
+      if (target.socket === socket) {
+        this.sendInvite(socket, { t: 'invite:error', message: "You can't invite this Lumen player to itself." })
+        return
+      }
+      if ([...this.pendingInvites.values()].some((pending) => pending.to.socket === target.socket)) {
+        this.sendInvite(socket, { t: 'invite:error', message: 'That Lumen player is already answering an invitation.' })
+        return
+      }
+      const parsed = parseInvite(String(msg.invite ?? ''))
+      if (!parsed || parsed.roomId !== String(msg.roomId ?? '').toUpperCase()) {
+        this.sendInvite(socket, { t: 'invite:error', message: 'The watch-room invitation is not valid.' })
+        return
+      }
+      const id = randomBytes(12).toString('hex')
+      const invite: WatchInvite = {
+        id,
+        fromId: sender.lumenId,
+        fromName: sender.name,
+        invite: msg.invite.slice(0, 512),
+        roomId: parsed.roomId,
+        title: String(msg.title || 'a film').slice(0, 160),
+        mode: msg.mode === 'stream' ? 'stream' : 'library',
+        expiresAt: now + WATCH_INVITE_TTL_MS
+      }
+      this.pendingInvites.set(id, { invite, from: sender, to: target })
+      this.sendInvite(target.socket, { t: 'invite:incoming', invite })
+      this.sendInvite(socket, { t: 'invite:delivery', inviteId: id, toId: target.lumenId, state: 'ringing' })
+      return
+    }
+
+    const pending = this.pendingInvites.get(msg.inviteId)
+    if (!pending || pending.to.socket !== socket) return
+    this.pendingInvites.delete(msg.inviteId)
+    this.sendInvite(pending.from.socket, {
+      t: 'invite:delivery',
+      inviteId: msg.inviteId,
+      toId: pending.to.lumenId,
+      state: msg.accept ? 'accepted' : 'declined'
+    })
   }
 
   private handle(socket: WebSocket, msg: ClientMessage): void {
@@ -288,6 +419,7 @@ export class TogetherRelay {
   }
 
   private onClose(socket: WebSocket): void {
+    this.removeInviteConnection(socket)
     const conn = this.connections.get(socket)
     if (!conn) return
     this.connections.delete(socket)
@@ -314,6 +446,24 @@ export class TogetherRelay {
     )
   }
 
+  private removeInviteConnection(socket: WebSocket): void {
+    const conn = this.inviteConnections.get(socket)
+    if (!conn) return
+    this.inviteConnections.delete(socket)
+    const key = normalizeLumenId(conn.lumenId)
+    if (this.inviteDirectory.get(key)?.socket === socket) this.inviteDirectory.delete(key)
+    for (const [id, pending] of this.pendingInvites) {
+      if (pending.to.socket === socket) {
+        this.pendingInvites.delete(id)
+        this.sendInvite(pending.from.socket, {
+          t: 'invite:delivery', inviteId: id, toId: pending.to.lumenId, state: 'missed'
+        })
+      } else if (pending.from.socket === socket) {
+        this.pendingInvites.delete(id)
+      }
+    }
+  }
+
   private clearPending(roomId: string, memberId: string): void {
     const key = `${roomId}/${memberId}`
     const timer = this.pending.get(key)
@@ -332,6 +482,19 @@ export class TogetherRelay {
         } catch {
           /* already gone */
         }
+      }
+    }
+    for (const conn of this.inviteConnections.values()) {
+      if (now - conn.lastSeen > MEMBER_TIMEOUT_MS) {
+        try { conn.socket.close(1001, 'silent') } catch { /* already gone */ }
+      }
+    }
+    for (const [id, pending] of this.pendingInvites) {
+      if (pending.invite.expiresAt <= now) {
+        this.pendingInvites.delete(id)
+        this.sendInvite(pending.from.socket, {
+          t: 'invite:delivery', inviteId: id, toId: pending.to.lumenId, state: 'missed'
+        })
       }
     }
     for (const room of this.rooms.values()) {
@@ -380,5 +543,10 @@ export class TogetherRelay {
     } catch {
       /* the close handler will clean up */
     }
+  }
+
+  private sendInvite(socket: WebSocket, msg: InviteServerMessage): void {
+    if (socket.readyState !== socket.OPEN) return
+    try { socket.send(JSON.stringify(msg)) } catch { /* close cleans up */ }
   }
 }

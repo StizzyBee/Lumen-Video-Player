@@ -76,6 +76,14 @@ export function setupCommands(): void {
       run: () => openTogether('host')
     },
     {
+      id: 'together.invitePlayer',
+      title: 'Watch together: invite a Lumen player',
+      category: 'Together',
+      keywords: ['ring', 'call', 'lumen id', 'friend'],
+      when: () => !!useTogether.getState().hosting,
+      run: () => useTogether.getState().setPanelOpen(true)
+    },
+    {
       id: 'together.leave',
       title: 'Watch together: leave the room',
       category: 'Together',

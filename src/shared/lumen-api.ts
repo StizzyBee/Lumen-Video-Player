@@ -1,4 +1,5 @@
 import type { ContentRef, TogetherEvent } from './together/api'
+import type { InviteEvent, WatchInviteMode } from './together/invites'
 import type { MeshProvider, MeshStatus, NetAddress } from './together/mesh'
 import type { UpdateEvent } from './updates'
 import type {
@@ -167,6 +168,20 @@ export interface LumenApi {
     callVote(kind: 'resume' | 'revoke', targetId?: string, durationMs?: number): void
     vote(ballotId: string, choice: 'yes' | 'no'): void
     onEvent(cb: (e: TogetherEvent) => void): Unsubscribe
+    invites: {
+      /** Keep this installation reachable through an always-on Together relay. */
+      configure(opts: { url: string; memberId: string; name: string }): void
+      disconnect(): void
+      send(opts: {
+        toId: string
+        invite: string
+        roomId: string
+        title: string
+        mode: WatchInviteMode
+      }): void
+      respond(inviteId: string, accept: boolean): void
+      onEvent(cb: (e: InviteEvent) => void): Unsubscribe
+    }
     /**
      * Mesh VPN support — the answer to NAT, and so to watching together from
      * different continents without anyone touching a router.

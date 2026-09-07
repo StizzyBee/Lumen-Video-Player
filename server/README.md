@@ -1,6 +1,6 @@
 # Lumen Together relay
 
-A tiny WebSocket relay for Lumen watch parties. **You usually do not need this.**
+A tiny WebSocket relay for Lumen watch parties and call-style player invitations.
 
 Lumen can host a room itself — Watch together → *Start a room* — and that is the
 right answer whenever the host can be reached directly: same house, a forwarded
@@ -15,7 +15,8 @@ the room.
 ## Running it
 
 ```bash
-npm install && npm start
+npm install
+npm run relay
 ```
 
 Listens on `PORT` (default `7345`). Then in Lumen, on every watcher's machine:
@@ -23,6 +24,16 @@ Watch together → Join → enter `your-relay-host:7345` and the room code.
 
 Room codes are created on demand: the first person to use a code makes that room,
 and it disappears when the last person leaves.
+
+## Player invitations
+
+The same relay also acts as Lumen's invitation directory. Enter its address in
+**Settings → Watch together → Invitation relay** on both PCs. Each Lumen
+installation then remains reachable by its Lumen ID while the app is open.
+
+Invitations are online-only and expire after 60 seconds. The relay stores no
+accounts, contacts, chat history, or offline messages. It only forwards the
+short-lived room address and the recipient's Accept/Decline response.
 
 ## Behind a reverse proxy
 

@@ -89,6 +89,13 @@ const api: LumenApi = {
     callVote: (kind, targetId, durationMs) => ipcRenderer.send('together:call-vote', kind, targetId, durationMs),
     vote: (ballotId, choice) => ipcRenderer.send('together:vote', ballotId, choice),
     onEvent: (cb) => on('together:event', cb),
+    invites: {
+      configure: (opts) => ipcRenderer.send('together:invite-configure', opts),
+      disconnect: () => ipcRenderer.send('together:invite-disconnect'),
+      send: (opts) => ipcRenderer.send('together:invite-send', opts),
+      respond: (inviteId, accept) => ipcRenderer.send('together:invite-respond', inviteId, accept),
+      onEvent: (cb) => on('together:invite-event', cb)
+    },
     mesh: {
       status: () => ipcRenderer.invoke('together:mesh-status'),
       hasWinget: () => ipcRenderer.invoke('mpv:has-winget'),

@@ -106,6 +106,19 @@ the token stops working the moment the host stops sharing. Because it serves
 from the host's own disk, a streaming room has to be self-hosted — the
 standalone relay has no access to anyone's files.
 
+## Ring another Lumen player
+
+Every installation has a stable, readable Lumen ID. When two players use the
+same always-on invitation relay, a host can enter the other person's ID in the
+active room and ring their app directly. The incoming prompt names the caller
+and film, explains whether the guest needs a local copy, and offers Accept or
+Decline. Accepting feeds the enclosed room address through the exact same join
+path as a pasted invitation.
+
+This is intentionally a doorbell rather than an account system: presence is
+online-only, invitations expire after 60 seconds, and the relay keeps no
+friends, messages, or invitation history.
+
 ## Leaving without stopping
 
 Pressing Back during a watch party shrinks the player into a corner card

@@ -8,7 +8,7 @@ import { motion } from 'motion/react'
 import {
   X, Users, Copy, Check, Radio, Gavel, ThumbsUp, ThumbsDown, ShieldOff,
   Crown, WifiOff, FileWarning, Headphones, Pause, Hourglass, Globe, House,
-  Download, ExternalLink, CircleQuestionMark, ClipboardPaste, Library, Share2
+  Download, ExternalLink, CircleQuestionMark, ClipboardPaste, Library, Share2, Send, UserRound
 } from 'lucide-react'
 import { useTogether } from '@/core/store/together'
 import { useSettings } from '@/core/store/settings'
@@ -218,6 +218,9 @@ function StartPanel({ onShowGuide }: { onShowGuide: () => void }): ReactNode {
   const clipboardInvite = useTogether((s) => s.clipboardInvite)
   const checkClipboard = useTogether((s) => s.checkClipboard)
   const status = useTogether((s) => s.status)
+  const lumenId = useTogether((s) => s.lumenId)
+  const inviteStatus = useTogether((s) => s.inviteStatus)
+  const [idCopied, setIdCopied] = useState(false)
   const [invite, setInvite] = useState(settings.lastRelayUrl)
   const [busy, setBusy] = useState(false)
 
@@ -296,6 +299,30 @@ function StartPanel({ onShowGuide }: { onShowGuide: () => void }): ReactNode {
           maxLength={24}
           onChange={(e) => together.setDisplayName(e.target.value)}
         />
+      </div>
+
+      <div className={styles.identityCard}>
+        <div className={styles.identityTitle}><UserRound size={14} /> Your Lumen ID</div>
+        <div className={styles.identityRow}>
+          <code>{lumenId || 'Creating…'}</code>
+          <IconButton
+            size="sm"
+            label="Copy your Lumen ID"
+            onClick={() => {
+              if (!lumenId) return
+              void navigator.clipboard.writeText(lumenId)
+              setIdCopied(true)
+              window.setTimeout(() => setIdCopied(false), 1600)
+            }}
+          >
+            {idCopied ? <Check size={14} /> : <Copy size={14} />}
+          </IconButton>
+        </div>
+        <span className={inviteStatus === 'online' ? styles.inviteOnline : styles.inviteOffline}>
+          {inviteStatus === 'online'
+            ? 'Ready to receive invitations'
+            : 'Set an invitation relay in Settings to receive calls'}
+        </span>
       </div>
 
       {clipboardInvite && (
@@ -380,7 +407,10 @@ function StartPanel({ onShowGuide }: { onShowGuide: () => void }): ReactNode {
 
 function HostingCard(): ReactNode {
   const hosting = useTogether((s) => s.hosting)
+  const inviteStatus = useTogether((s) => s.inviteStatus)
+  const sendWatchInvite = useTogether((s) => s.sendWatchInvite)
   const [copied, setCopied] = useState(false)
+  const [targetId, setTargetId] = useState('')
   if (!hosting) return null
 
   // The best address is the one a friend can actually reach — mesh first, so
@@ -435,6 +465,35 @@ function HostingCard(): ReactNode {
           <p className={styles.help}>
             Your friend pastes this one line into Join — it carries the address and the code together.
           </p>
+
+          <div className={styles.doorbell}>
+            <div className={styles.sectionTitle}><Send size={13} /> Invite a Lumen player</div>
+            <input
+              className={styles.input}
+              value={targetId}
+              placeholder="LMN-AB12-CD34-EF56"
+              spellCheck={false}
+              onChange={(event) => setTargetId(event.target.value.toUpperCase())}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && sendWatchInvite(targetId, invite, hosting.stream ? 'stream' : 'library')) {
+                  setTargetId('')
+                }
+              }}
+            />
+            <Button
+              variant="primary"
+              icon={<Send size={15} />}
+              disabled={!targetId.trim() || inviteStatus !== 'online'}
+              onClick={() => {
+                if (sendWatchInvite(targetId, invite, hosting.stream ? 'stream' : 'library')) setTargetId('')
+              }}
+            >
+              Ring their player
+            </Button>
+            {inviteStatus !== 'online' && (
+              <p className={styles.help}>Connect the invitation relay in Settings first.</p>
+            )}
+          </div>
         </>
       ) : (
         <p className={styles.help}>

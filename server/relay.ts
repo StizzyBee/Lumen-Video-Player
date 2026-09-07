@@ -15,7 +15,7 @@ const relay = new TogetherRelay({ port, host })
 const started = await relay.start()
 
 console.log(`Lumen Together relay listening on ${host}:${started.port}`)
-console.log('Rooms are created on demand; watchers just need the address and a room code.')
+console.log('Rooms are created on demand; the same address also routes online Lumen player invitations.')
 
 const shutdown = (): void => {
   console.log('\nShutting down.')

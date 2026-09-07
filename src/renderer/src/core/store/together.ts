@@ -14,6 +14,12 @@ import {
   type Restriction
 } from '@shared/together/protocol'
 import { formatInvite, normalizeHost, parseInvite, type Invite, type MeshStatus, type NetAddress } from '@shared/together/mesh'
+import {
+  isLumenId,
+  lumenIdFromMemberId,
+  type InviteStatus,
+  type WatchInvite
+} from '@shared/together/invites'
 import { decideCorrection, describeDrift, initialDriftState, type DriftState } from '@shared/together/drift'
 import { decideReadiness } from '@shared/together/readiness'
 import {
@@ -71,6 +77,10 @@ interface TogetherStore {
   meshLog: string[]
   panelOpen: boolean
   lastDenial: { message: string; until?: number } | null
+  /** Always-on doorbell state. It is deliberately separate from room status. */
+  inviteStatus: InviteStatus
+  lumenId: string
+  incomingInvite: WatchInvite | null
 
   init(): void
   /** Host a room. 'stream' serves your file so only you need a copy of it. */
@@ -81,6 +91,8 @@ interface TogetherStore {
   /** An invite sitting in the clipboard, so joining is one click. */
   clipboardInvite: Invite | null
   checkClipboard(): Promise<void>
+  sendWatchInvite(toId: string, invite: string, mode: RoomMode): boolean
+  answerWatchInvite(accept: boolean): Promise<void>
   refreshMesh(): Promise<void>
   installMesh(provider: 'zerotier' | 'tailscale'): Promise<void>
   joinZeroTier(networkId: string): Promise<boolean>
@@ -110,6 +122,7 @@ let lastMatchAttempt = ''
 /** Previous readiness answer — the hysteresis that stops threshold flapping. */
 let lastReported = false
 let unsubEvent: (() => void) | null = null
+let inviteConfigKey = ''
 /** Newer clipboard reads supersede older IPC responses. */
 let clipboardCheckSeq = 0
 
@@ -130,6 +143,23 @@ function ensureIdentity(): { memberId: string; displayName: string } {
   return { memberId, displayName }
 }
 
+function configureInviteConnection(set: (partial: Partial<TogetherStore>) => void): void {
+  const { memberId, displayName } = ensureIdentity()
+  const lumenId = lumenIdFromMemberId(memberId)
+  const rawUrl = useSettings.getState().settings.together.inviteRelayUrl
+  const url = normalizeHost(rawUrl)
+  const key = `${url ?? ''}\n${memberId}\n${displayName}`
+  set({ lumenId })
+  if (key === inviteConfigKey) return
+  inviteConfigKey = key
+  if (!url) {
+    platform.together.invites.disconnect()
+    set({ inviteStatus: 'disabled' })
+    return
+  }
+  platform.together.invites.configure({ url, memberId, name: displayName })
+}
+
 export const useTogether = create<TogetherStore>((set, get) => ({
   status: 'idle',
   room: null,
@@ -147,6 +177,9 @@ export const useTogether = create<TogetherStore>((set, get) => ({
   meshLog: [],
   panelOpen: false,
   lastDenial: null,
+  inviteStatus: 'disabled',
+  lumenId: '',
+  incomingInvite: null,
 
   init() {
     if (unsubEvent) return
@@ -189,6 +222,36 @@ export const useTogether = create<TogetherStore>((set, get) => ({
           break
       }
     })
+    platform.together.invites.onEvent((e) => {
+      if (e.type === 'status') {
+        set({ inviteStatus: e.status, ...(e.lumenId ? { lumenId: e.lumenId } : {}) })
+        if (e.status === 'error' && e.message) {
+          useUi.getState().toast({ kind: 'warn', title: 'Player invitations', desc: e.message }, 5000)
+        }
+      } else if (e.type === 'incoming') {
+        set({ incomingInvite: e.invite })
+      } else if (e.type === 'error') {
+        useUi.getState().toast({ kind: 'warn', title: 'Player invitations', desc: e.message }, 5000)
+      } else {
+        const labels = {
+          ringing: { kind: 'info' as const, title: 'Invitation sent', desc: 'Their Lumen player is ringing.' },
+          accepted: { kind: 'ok' as const, title: 'Invitation accepted', desc: 'They are joining your room.' },
+          declined: { kind: 'info' as const, title: 'Invitation declined', desc: undefined },
+          missed: { kind: 'warn' as const, title: 'No answer', desc: 'The invitation expired.' },
+          offline: { kind: 'warn' as const, title: 'That player is offline', desc: 'Check the Lumen ID and try again.' }
+        }
+        useUi.getState().toast(labels[e.state], e.state === 'ringing' ? 3500 : 5000)
+      }
+    })
+    const syncInviteConnection = (): void => configureInviteConnection(set)
+    useSettings.subscribe((state, previous) => {
+      const a = state.settings.together
+      const b = previous.settings.together
+      if (a.memberId !== b.memberId || a.displayName !== b.displayName || a.inviteRelayUrl !== b.inviteRelayUrl) {
+        syncInviteConnection()
+      }
+    })
+    syncInviteConnection()
   },
 
   async host(mode = 'library') {
@@ -325,6 +388,69 @@ export const useTogether = create<TogetherStore>((set, get) => ({
     } catch {
       if (seq !== clipboardCheckSeq || get().room) return
       set({ clipboardInvite: null })
+    }
+  },
+
+  sendWatchInvite(toId, invite, mode) {
+    if (get().inviteStatus !== 'online') {
+      useUi.getState().toast({
+        kind: 'warn',
+        title: 'Player invitations are not connected',
+        desc: 'Set the invitation relay in Settings → Watch together.'
+      }, 5500)
+      return false
+    }
+    if (!isLumenId(toId)) {
+      useUi.getState().toast({ kind: 'warn', title: 'That Lumen ID does not look right' }, 4000)
+      return false
+    }
+    const parsed = parseInvite(invite)
+    if (!parsed) return false
+    platform.together.invites.send({
+      toId,
+      invite,
+      roomId: parsed.roomId,
+      title: usePlayer.getState().item?.title ?? get().room?.content?.title ?? 'a film',
+      mode
+    })
+    return true
+  },
+
+  async answerWatchInvite(accept) {
+    const incoming = get().incomingInvite
+    if (!incoming) return
+    if (incoming.expiresAt <= Date.now()) {
+      set({ incomingInvite: null })
+      platform.together.invites.respond(incoming.id, false)
+      useUi.getState().toast({ kind: 'warn', title: 'That invitation expired' }, 4000)
+      return
+    }
+    if (accept && incoming.mode === 'library' && !usePlayer.getState().item) {
+      set({ incomingInvite: null })
+      const paths = await platform.library.openFileDialog()
+      if (!paths?.length) {
+        platform.together.invites.respond(incoming.id, false)
+        return
+      }
+      await usePlayer.getState().openPaths(paths)
+      if (!usePlayer.getState().item) {
+        platform.together.invites.respond(incoming.id, false)
+        return
+      }
+    }
+    set({ incomingInvite: null })
+    platform.together.invites.respond(incoming.id, accept)
+    if (!accept) return
+    try {
+      if (!(await get().joinInvite(incoming.invite))) {
+        throw new Error('The room address was not valid.')
+      }
+    } catch (error) {
+      useUi.getState().toast({
+        kind: 'warn',
+        title: 'Could not join the watch party',
+        desc: error instanceof Error ? error.message : String(error)
+      }, 6000)
     }
   },
 

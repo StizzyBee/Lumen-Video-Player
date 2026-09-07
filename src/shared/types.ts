@@ -155,6 +155,8 @@ export interface TogetherSettings {
   lastRelayUrl: string
   /** Port the built-in relay listens on when you host. */
   hostPort: number
+  /** Optional always-on relay used only to ring another Lumen installation. */
+  inviteRelayUrl: string
 }
 
 export type LibrarySort =
@@ -263,7 +265,8 @@ export const DEFAULT_SETTINGS: Settings = {
     displayName: '',
     audioOffsetMs: 0,
     lastRelayUrl: '',
-    hostPort: 7345
+    hostPort: 7345,
+    inviteRelayUrl: ''
   },
   shortcuts: {}
 }

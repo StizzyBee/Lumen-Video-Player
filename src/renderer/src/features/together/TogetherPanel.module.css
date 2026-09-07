@@ -421,6 +421,46 @@
   font-weight: 500;
   transition: color var(--t-fast), background var(--t-fast);
 }
+
+.identityCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-radius: var(--r-lg);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.identityTitle,
+.identityRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.identityTitle {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: var(--fs-caption);
+}
+.identityRow code {
+  flex: 1;
+  color: #fff;
+  font-size: var(--fs-body);
+  letter-spacing: 0.04em;
+}
+.inviteOnline,
+.inviteOffline {
+  font-size: var(--fs-caption);
+}
+.inviteOnline { color: color-mix(in oklab, var(--ok) 80%, white); }
+.inviteOffline { color: rgba(255, 255, 255, 0.42); }
+
+.doorbell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding-top: var(--sp-3);
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+}
 .guideLink:hover {
   color: #fff;
   background: rgba(255, 255, 255, 0.06);
