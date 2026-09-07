@@ -49,25 +49,20 @@ export type InviteEvent =
   | { type: 'delivery'; inviteId?: string; toId: string; state: InviteDeliveryState }
   | { type: 'error'; message: string }
 
-/**
- * A member id is intentionally opaque inside the sync engine. Turn it into a
- * short, readable address without changing existing installations' identity.
- */
-export function lumenIdFromMemberId(memberId: string): string {
-  const body = memberId
-    .replace(/^m-/i, '')
-    .replace(/[^a-z0-9]/gi, '')
-    .toUpperCase()
-    .slice(0, 20)
-  const groups = body.match(/.{1,4}/g)?.join('-') ?? ''
-  return groups ? `LMN-${groups}` : ''
+/** Format the short, relay-assigned number shown to another Lumen player. */
+export function lumenIdFromNumber(number: number): string {
+  return Number.isSafeInteger(number) && number > 0 ? `LMN-${number}` : ''
 }
 
 /** Case/spacing tolerant lookup key for IDs people type or read aloud. */
 export function normalizeLumenId(value: string): string {
-  return value.toUpperCase().replace(/^LMN[\s-]*/i, '').replace(/[^A-Z0-9]/g, '')
+  const match = /^(?:(?:LUMEN|LMN)\s*)?[#-]?\s*(\d{1,12})\s*$/i.exec(value.trim())
+  return match?.[1] ?? ''
 }
 
 export function isLumenId(value: string): boolean {
-  return /^[A-Z0-9]{10,20}$/.test(normalizeLumenId(value))
+  const normalized = normalizeLumenId(value)
+  if (!/^\d{1,12}$/.test(normalized)) return false
+  const number = Number(normalized)
+  return Number.isSafeInteger(number) && number > 0
 }

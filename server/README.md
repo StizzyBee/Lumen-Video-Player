@@ -35,6 +35,11 @@ Invitations are online-only and expire after 60 seconds. The relay stores no
 accounts, contacts, chat history, or offline messages. It only forwards the
 short-lived room address and the recipient's Accept/Decline response.
 
+The relay assigns `LMN-1`, `LMN-2`, and so on in first-seen order and keeps the
+mapping in `data/invite-registry.json`. Set `LUMEN_INVITE_REGISTRY` to use a
+different file. A number is global only when every public Lumen installation
+uses the same authoritative relay.
+
 ## Behind a reverse proxy
 
 WebSocket upgrades must be forwarded. For nginx:

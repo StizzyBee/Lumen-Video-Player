@@ -1,18 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import { isLumenId, lumenIdFromMemberId, normalizeLumenId } from './invites'
+import { isLumenId, lumenIdFromNumber, normalizeLumenId } from './invites'
 
 describe('Lumen IDs', () => {
-  it('gives existing installation ids a readable stable form', () => {
-    expect(lumenIdFromMemberId('m-ab12cd34ef56')).toBe('LMN-AB12-CD34-EF56')
+  it('formats the relay-assigned player number', () => {
+    expect(lumenIdFromNumber(1)).toBe('LMN-1')
+    expect(lumenIdFromNumber(25_000)).toBe('LMN-25000')
   })
 
-  it('accepts copied, typed, and compact forms as the same target', () => {
-    expect(normalizeLumenId('lmn-ab12-cd34-ef56')).toBe('AB12CD34EF56')
-    expect(normalizeLumenId(' AB12 CD34 EF56 ')).toBe('AB12CD34EF56')
-    expect(isLumenId('LMN-AB12-CD34-EF56')).toBe(true)
+  it('accepts copied and conversational forms as the same target', () => {
+    expect(normalizeLumenId('LMN-25')).toBe('25')
+    expect(normalizeLumenId(' Lumen #25 ')).toBe('25')
+    expect(isLumenId('LMN-25')).toBe(true)
   })
 
-  it('rejects IDs that are too short', () => {
-    expect(isLumenId('LMN-1234')).toBe(false)
+  it('rejects zero and non-numeric IDs', () => {
+    expect(isLumenId('LMN-0')).toBe(false)
+    expect(isLumenId('LMN-ANA')).toBe(false)
+    expect(isLumenId('LMN-ANA2')).toBe(false)
   })
 })

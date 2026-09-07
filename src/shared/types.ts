@@ -108,7 +108,8 @@ export interface Settings {
     seekSmallSec: number
     seekLargeSec: number
     defaultRate: number
-    autoPlay: boolean
+    /** Continue into the next queued video when the current one ends. */
+    autoPlayNext: boolean
     hardwareDecoding: boolean
   }
   audio: {
@@ -157,6 +158,8 @@ export interface TogetherSettings {
   hostPort: number
   /** Optional always-on relay used only to ring another Lumen installation. */
   inviteRelayUrl: string
+  /** Recent invitation peers, kept locally for one-click invitations later. */
+  recentPlayers: Array<{ id: string; name: string }>
 }
 
 export type LibrarySort =
@@ -235,7 +238,7 @@ export const DEFAULT_SETTINGS: Settings = {
     seekSmallSec: 5,
     seekLargeSec: 10,
     defaultRate: 1,
-    autoPlay: true,
+    autoPlayNext: false,
     hardwareDecoding: true
   },
   audio: {
@@ -266,7 +269,8 @@ export const DEFAULT_SETTINGS: Settings = {
     audioOffsetMs: 0,
     lastRelayUrl: '',
     hostPort: 7345,
-    inviteRelayUrl: ''
+    inviteRelayUrl: '',
+    recentPlayers: []
   },
   shortcuts: {}
 }

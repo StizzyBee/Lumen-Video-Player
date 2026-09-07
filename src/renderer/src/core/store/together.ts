@@ -16,7 +16,8 @@ import {
 import { formatInvite, normalizeHost, parseInvite, type Invite, type MeshStatus, type NetAddress } from '@shared/together/mesh'
 import {
   isLumenId,
-  lumenIdFromMemberId,
+  lumenIdFromNumber,
+  normalizeLumenId,
   type InviteStatus,
   type WatchInvite
 } from '@shared/together/invites'
@@ -145,19 +146,28 @@ function ensureIdentity(): { memberId: string; displayName: string } {
 
 function configureInviteConnection(set: (partial: Partial<TogetherStore>) => void): void {
   const { memberId, displayName } = ensureIdentity()
-  const lumenId = lumenIdFromMemberId(memberId)
   const rawUrl = useSettings.getState().settings.together.inviteRelayUrl
   const url = normalizeHost(rawUrl)
   const key = `${url ?? ''}\n${memberId}\n${displayName}`
-  set({ lumenId })
   if (key === inviteConfigKey) return
   inviteConfigKey = key
   if (!url) {
     platform.together.invites.disconnect()
-    set({ inviteStatus: 'disabled' })
+    set({ inviteStatus: 'disabled', lumenId: '' })
     return
   }
+  set({ lumenId: '' })
   platform.together.invites.configure({ url, memberId, name: displayName })
+}
+
+function rememberRecentPlayer(rawId: string, name = ''): void {
+  if (!isLumenId(rawId)) return
+  const id = lumenIdFromNumber(Number(normalizeLumenId(rawId)))
+  const current = useSettings.getState().settings.together.recentPlayers
+  const previous = current.find((player) => player.id === id)
+  const entry = { id, name: name || previous?.name || id }
+  const recentPlayers = [entry, ...current.filter((player) => player.id !== id)].slice(0, 8)
+  void useSettings.getState().patch({ together: { recentPlayers } })
 }
 
 export const useTogether = create<TogetherStore>((set, get) => ({
@@ -229,6 +239,7 @@ export const useTogether = create<TogetherStore>((set, get) => ({
           useUi.getState().toast({ kind: 'warn', title: 'Player invitations', desc: e.message }, 5000)
         }
       } else if (e.type === 'incoming') {
+        rememberRecentPlayer(e.invite.fromId, e.invite.fromName)
         set({ incomingInvite: e.invite })
       } else if (e.type === 'error') {
         useUi.getState().toast({ kind: 'warn', title: 'Player invitations', desc: e.message }, 5000)
@@ -413,6 +424,7 @@ export const useTogether = create<TogetherStore>((set, get) => ({
       title: usePlayer.getState().item?.title ?? get().room?.content?.title ?? 'a film',
       mode
     })
+    rememberRecentPlayer(toId)
     return true
   },
 

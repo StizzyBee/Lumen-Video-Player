@@ -10,6 +10,7 @@ Thumbs.db
 *.log
 .vite/
 coverage/
+data/
 resources/surface/*.exe
 
 # Third-party reference checkout, not part of Lumen

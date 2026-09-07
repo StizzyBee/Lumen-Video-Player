@@ -194,7 +194,7 @@ function runEndAction(get: () => PlayerStore): void {
     loop: s.loop,
     queueIndex: s.queueIndex,
     queueLength: s.queue.length,
-    autoPlay: useSettings.getState().settings.playback.autoPlay
+    autoPlay: useSettings.getState().settings.playback.autoPlayNext
   })
   if (action === 'loop-one') {
     if (s.mpvMode === 'playing') {

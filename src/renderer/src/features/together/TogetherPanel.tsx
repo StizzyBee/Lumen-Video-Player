@@ -304,7 +304,7 @@ function StartPanel({ onShowGuide }: { onShowGuide: () => void }): ReactNode {
       <div className={styles.identityCard}>
         <div className={styles.identityTitle}><UserRound size={14} /> Your Lumen ID</div>
         <div className={styles.identityRow}>
-          <code>{lumenId || 'Creating…'}</code>
+          <code>{lumenId || 'Not assigned'}</code>
           <IconButton
             size="sm"
             label="Copy your Lumen ID"
@@ -409,6 +409,7 @@ function HostingCard(): ReactNode {
   const hosting = useTogether((s) => s.hosting)
   const inviteStatus = useTogether((s) => s.inviteStatus)
   const sendWatchInvite = useTogether((s) => s.sendWatchInvite)
+  const recentPlayers = useSettings((s) => s.settings.together.recentPlayers)
   const [copied, setCopied] = useState(false)
   const [targetId, setTargetId] = useState('')
   if (!hosting) return null
@@ -471,7 +472,7 @@ function HostingCard(): ReactNode {
             <input
               className={styles.input}
               value={targetId}
-              placeholder="LMN-AB12-CD34-EF56"
+              placeholder="LMN-2"
               spellCheck={false}
               onChange={(event) => setTargetId(event.target.value.toUpperCase())}
               onKeyDown={(event) => {
@@ -490,6 +491,23 @@ function HostingCard(): ReactNode {
             >
               Ring their player
             </Button>
+            {recentPlayers.length > 0 && (
+              <div className={styles.recentPlayers}>
+                <span>Invite again</span>
+                {recentPlayers.map((player) => (
+                  <button
+                    key={player.id}
+                    className={styles.recentPlayer}
+                    disabled={inviteStatus !== 'online'}
+                    onClick={() => sendWatchInvite(player.id, invite, hosting.stream ? 'stream' : 'library')}
+                  >
+                    <UserRound size={13} />
+                    <span>{player.name === player.id ? player.id : player.name}</span>
+                    {player.name !== player.id && <small>{player.id}</small>}
+                  </button>
+                ))}
+              </div>
+            )}
             {inviteStatus !== 'online' && (
               <p className={styles.help}>Connect the invitation relay in Settings first.</p>
             )}

@@ -38,12 +38,12 @@ describe('player invitations', () => {
   it('rings an online player and returns their acceptance', async () => {
     const { url, port } = await setup()
     const ana = player(url, 'm-ab12cd34ef56', 'Ana')
-    const ben = player(url, 'm-zz98yy76xx54', 'Ben')
     await until(() => ana.events.some((event) => event.type === 'status' && event.status === 'online'))
+    const ben = player(url, 'm-zz98yy76xx54', 'Ben')
     await until(() => ben.events.some((event) => event.type === 'status' && event.status === 'online'))
 
     ana.client.sendInvite({
-      toId: 'LMN-ZZ98-YY76-XX54',
+      toId: 'LMN-2',
       invite: `127.0.0.1:${port}#TEST23`,
       roomId: 'TEST23',
       title: 'The Film',
@@ -66,7 +66,7 @@ describe('player invitations', () => {
     const ana = player(url, 'm-ab12cd34ef56', 'Ana')
     await until(() => ana.events.some((event) => event.type === 'status' && event.status === 'online'))
     ana.client.sendInvite({
-      toId: 'LMN-NOT0-ONLI-NE00',
+      toId: 'LMN-999',
       invite: `127.0.0.1:${port}#TEST23`,
       roomId: 'TEST23',
       title: 'The Film',

@@ -11,6 +11,7 @@ import { useTogether } from '@/core/store/together'
 import { platform, isDesktop } from '@/core/platform'
 import { HTML5_CONTAINERS } from '@/core/engine/select'
 import { isStreamItem } from '@/core/streams'
+import { shouldShowPlayerChrome } from '@/core/player-chrome'
 import { IconButton } from '@/components/ui/IconButton'
 import { Button } from '@/components/ui/Button'
 import { ControlsBar } from './ControlsBar'
@@ -77,6 +78,10 @@ export function PlayerView(): ReactNode {
     const t = window.setInterval(() => {
       const s = usePlayer.getState()
       const uiS = useUi.getState()
+      if (!uiS.fullscreen) {
+        setChromeVisible(true)
+        return
+      }
       const busy =
         s.status !== 'playing' || menuOpen || uiS.playlistDrawerOpen || uiS.contextMenu !== null || uiS.paletteOpen
       if (!busy && Date.now() - lastActivity.current > HIDE_DELAY) setChromeVisible(false)
@@ -258,7 +263,7 @@ export function PlayerView(): ReactNode {
   }
 
   const mini = ui.miniMode
-  const showChrome = chromeVisible || p.status === 'paused' || p.status === 'ended' || p.status === 'error' || p.status === 'idle' || p.status === 'loading'
+  const showChrome = shouldShowPlayerChrome(ui.fullscreen, chromeVisible, p.status)
   // A file in one of Chromium's own containers that still needs mpv is a codec
   // problem (HEVC/10-bit/DTS), not a container problem — say so.
   const codecNeedsMpv = HTML5_CONTAINERS.has((p.item?.ext ?? '').toLowerCase())

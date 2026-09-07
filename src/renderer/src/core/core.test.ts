@@ -94,6 +94,7 @@ describe('settings migration', () => {
     expect(merged.theme.mode).toBe(DEFAULT_SETTINGS.theme.mode)
     expect(merged.audio.volume).toBe(0.3)
     expect(merged.playback.rememberPosition).toBe(true)
+    expect(merged.playback.autoPlayNext).toBe(false)
   })
   it('survives null/garbage input', () => {
     expect(mergeSettings(null)).toEqual(DEFAULT_SETTINGS)
@@ -102,5 +103,9 @@ describe('settings migration', () => {
   it('preserves custom shortcut maps wholesale', () => {
     const merged = mergeSettings({ shortcuts: { 'playback.toggle': 'Enter' } })
     expect(merged.shortcuts['playback.toggle']).toBe('Enter')
+  })
+  it('does not carry the old default-on autoplay field forward', () => {
+    const merged = mergeSettings({ playback: { autoPlay: true } })
+    expect(merged.playback.autoPlayNext).toBe(false)
   })
 })

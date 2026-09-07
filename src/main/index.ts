@@ -9,6 +9,7 @@ import { JsonStore } from './store'
 import { registerIpc } from './ipc'
 import { needsCompatibilityRenderer } from './mpv/renderer'
 import { mergeSettings, VIDEO_EXTENSIONS, type Playlist, type Settings } from '@shared/types'
+import { cleanupStaleUpdateCache } from './update-cleanup'
 
 app.setName('Lumen')
 
@@ -56,6 +57,7 @@ function fileArgFrom(argv: string[]): string | null {
 
 async function bootstrap(): Promise<void> {
   startupTrace('bootstrap started')
+  void cleanupStaleUpdateCache(app.getVersion(), process.env.LOCALAPPDATA)
   const userData = app.getPath('userData')
   const thumbsDir = join(userData, 'thumbs')
 

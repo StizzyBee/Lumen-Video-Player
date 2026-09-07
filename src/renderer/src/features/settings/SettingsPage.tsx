@@ -435,8 +435,8 @@ export function SettingsPage(): ReactNode {
           <Row query={q} label="Remember position" desc="Resume videos where you left off">
             <Switch ariaLabel="Remember position" checked={s.playback.rememberPosition} onChange={(v) => patch({ playback: { rememberPosition: v } })} />
           </Row>
-          <Row query={q} label="Autoplay next" desc="Continue with the next video in the queue">
-            <Switch ariaLabel="Autoplay next" checked={s.playback.autoPlay} onChange={(v) => patch({ playback: { autoPlay: v } })} />
+          <Row query={q} label="Autoplay next" desc="Continue with the next video in the queue. Off by default.">
+            <Switch ariaLabel="Autoplay next" checked={s.playback.autoPlayNext} onChange={(v) => patch({ playback: { autoPlayNext: v } })} />
           </Row>
           <Row query={q} label="Default speed" wide>
             <Slider ariaLabel="Default speed" value={s.playback.defaultRate} min={0.25} max={3} step={0.25} onChange={(v) => patch({ playback: { defaultRate: v } })} format={formatRate} />
@@ -602,7 +602,13 @@ export function SettingsPage(): ReactNode {
             desc="Give this ID to someone so they can ring your player. It stays with this Lumen installation."
             wide
           >
-            <input className={styles.textInput} value={lumenId} readOnly aria-label="Your Lumen ID" />
+            <input
+              className={styles.textInput}
+              value={lumenId}
+              placeholder="Assigned when the relay connects"
+              readOnly
+              aria-label="Your Lumen ID"
+            />
             <IconButton
               label="Copy Lumen ID"
               onClick={() => {

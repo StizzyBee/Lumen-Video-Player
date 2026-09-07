@@ -108,7 +108,8 @@ standalone relay has no access to anyone's files.
 
 ## Ring another Lumen player
 
-Every installation has a stable, readable Lumen ID. When two players use the
+Every installation receives a short relay-assigned Lumen number (`LMN-1`,
+`LMN-2`, and so on). When two players use the
 same always-on invitation relay, a host can enter the other person's ID in the
 active room and ring their app directly. The incoming prompt names the caller
 and film, explains whether the guest needs a local copy, and offers Accept or
@@ -118,6 +119,10 @@ path as a pasted invitation.
 This is intentionally a doorbell rather than an account system: presence is
 online-only, invitations expire after 60 seconds, and the relay keeps no
 friends, messages, or invitation history.
+
+Lumen remembers the last eight players involved in invitations on the local
+PC. After starting a different film—even days later—the host can ring one of
+those players again with a single click. The relay still stores no contact list.
 
 ## Leaving without stopping
 

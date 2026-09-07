@@ -12,13 +12,13 @@ import { serveStream, type StreamSource } from './stream'
 import {
   WATCH_INVITE_PROTOCOL,
   WATCH_INVITE_TTL_MS,
-  lumenIdFromMemberId,
   normalizeLumenId,
   type InviteClientMessage,
   type InviteServerMessage,
   type WatchInvite
 } from '@shared/together/invites'
 import { parseInvite } from '@shared/together/mesh'
+import { InviteRegistry } from './invite-registry'
 import {
   MEMBER_TIMEOUT_MS,
   REJOIN_GRACE_MS,
@@ -76,6 +76,8 @@ export interface RelayOptions {
   /** Shown to guests in a streaming room. */
   streamTitle?: string
   streamDurationSec?: number
+  /** Persist account-free Lumen number assignments for the invitation relay. */
+  inviteRegistryPath?: string
 }
 
 export class TogetherRelay {
@@ -91,9 +93,11 @@ export class TogetherRelay {
   private pending = new Map<string, NodeJS.Timeout>()
   private timer: NodeJS.Timeout | null = null
   private opts: RelayOptions
+  private inviteRegistry: InviteRegistry
 
   constructor(opts: RelayOptions) {
     this.opts = opts
+    this.inviteRegistry = new InviteRegistry(opts.inviteRegistryPath)
   }
 
   get port(): number {
@@ -212,6 +216,10 @@ export class TogetherRelay {
     socket.on('error', () => this.onClose(socket))
   }
 
+  async flush(): Promise<void> {
+    await this.inviteRegistry.flush()
+  }
+
   private handleInvite(socket: WebSocket, msg: InviteClientMessage): void {
     const now = Date.now()
     if (msg.t === 'invite:register') {
@@ -220,9 +228,9 @@ export class TogetherRelay {
         socket.close()
         return
       }
-      const lumenId = lumenIdFromMemberId(String(msg.memberId ?? ''))
+      const lumenId = this.inviteRegistry.register(String(msg.memberId ?? ''))
       const key = normalizeLumenId(lumenId)
-      if (!key || key.length < 10 || key.length > 20) {
+      if (!key) {
         this.sendInvite(socket, { t: 'invite:error', message: 'That Lumen ID is not valid.' })
         socket.close()
         return

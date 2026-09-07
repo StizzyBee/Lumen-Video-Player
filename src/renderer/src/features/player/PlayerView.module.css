@@ -13,11 +13,9 @@
 }
 .surface video { width: 100%; height: 100%; object-fit: contain; }
 
-/* Region mpv's embedded surface window is sized to. While the chrome is
-   visible it insets to clear Lumen's top bar and bottom control bar (the
-   native mpv window paints on top of the DOM, so overlapped controls would be
-   unreachable); once the chrome auto-hides it expands full-bleed — a real
-   fullscreen picture. Main watches the system cursor to revive the chrome. */
+/* Region mpv's embedded surface window is sized to. In a normal window it
+   always clears Lumen's top and bottom controls; chrome only auto-hides and
+   expands full-bleed in actual fullscreen. */
 .mpvSurface {
   position: absolute;
   top: 92px;
