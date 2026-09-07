@@ -11,8 +11,9 @@ import {
   type Member,
   type Restriction
 } from '@shared/together/protocol'
-import { normalizeHost, parseInvite, type MeshStatus, type NetAddress } from '@shared/together/mesh'
+import { formatInvite, normalizeHost, parseInvite, type Invite, type MeshStatus, type NetAddress } from '@shared/together/mesh'
 import { decideCorrection, describeDrift, initialDriftState, type DriftState } from '@shared/together/drift'
+import { decideReadiness } from '@shared/together/readiness'
 import {
   rawPause,
   rawPlay,
@@ -29,8 +30,6 @@ import { useUi } from './ui'
 const TICK_MS = 250
 /** How often we tell the room where we are. */
 const REPORT_MS = 1000
-/** Buffered seconds below which we declare ourselves not ready. */
-const READY_BUFFER_SEC = 0.4
 
 export type SyncQuality = 'locked' | 'close' | 'drifting' | 'off' | 'unknown'
 
@@ -60,6 +59,9 @@ interface TogetherStore {
   join(url: string, roomId: string): Promise<void>
   /** Join from a single pasted invite token. */
   joinInvite(invite: string): Promise<boolean>
+  /** An invite sitting in the clipboard, so joining is one click. */
+  clipboardInvite: Invite | null
+  checkClipboard(): Promise<void>
   refreshMesh(): Promise<void>
   installMesh(provider: 'zerotier' | 'tailscale'): Promise<void>
   joinZeroTier(networkId: string): Promise<boolean>
@@ -84,6 +86,8 @@ let reporter: number | null = null
 let driftState: DriftState = initialDriftState()
 let lastAppliedEpoch = -1
 let lastReportedContentKey = ''
+/** Previous readiness answer — the hysteresis that stops threshold flapping. */
+let lastReported = false
 let unsubEvent: (() => void) | null = null
 
 /** A stable-ish identity for this install, created once and persisted. */
@@ -113,6 +117,7 @@ export const useTogether = create<TogetherStore>((set, get) => ({
   driftMs: 0,
   quality: 'unknown',
   hosting: null,
+  clipboardInvite: null,
   mesh: null,
   meshInstalling: false,
   meshLog: [],
@@ -177,6 +182,24 @@ export const useTogether = create<TogetherStore>((set, get) => ({
       set({ meId: memberId, hosting: info, panelOpen: true })
       void get().refreshMesh()
       startController()
+
+      const best = info.addresses[0]
+      if (best) {
+        const invite = formatInvite(best.address, info.port, info.roomId)
+        try {
+          await navigator.clipboard.writeText(invite)
+          useUi.getState().toast(
+            {
+              kind: 'ok',
+              title: 'Invite copied — send it to your friend',
+              desc: best.reach === 'mesh' ? invite : `${invite} · works on your network only`
+            },
+            7000
+          )
+        } catch {
+          // Clipboard refused; the panel still shows the invite and a button.
+        }
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       useUi.getState().toast(
@@ -225,6 +248,18 @@ export const useTogether = create<TogetherStore>((set, get) => ({
     if (!parsed) return false
     await get().join(parsed.url, parsed.roomId)
     return true
+  },
+
+  async checkClipboard() {
+    // No desktop gate: the browser mock answers safely, so this stays
+    // exercisable in dev:web instead of being dead code outside Electron.
+    if (get().room) return
+    try {
+      const text = await platform.shell.readClipboardText()
+      set({ clipboardInvite: parseInvite(text) })
+    } catch {
+      set({ clipboardInvite: null })
+    }
   },
 
   async refreshMesh() {
@@ -483,21 +518,20 @@ function report(): void {
   if (!s.room) return
 
   const ahead = bufferedAhead()
-  // "Ready" means this client could genuinely play the next frame right now.
-  // Claiming ready too eagerly lets the room start without somebody; claiming
-  // it too late only costs a moment — except in one case, which is why the
-  // `paused` escape below exists. A paused engine may stop emitting buffered
-  // ranges entirely, and a client that can never report ready would hold the
-  // gate shut forever. Deadlocking the room is far worse than one watcher
-  // starting a beat early, and the gate re-forms immediately if they stall.
-  const ready =
-    !!player.item &&
-    player.status !== 'loading' &&
-    player.status !== 'buffering' &&
-    player.status !== 'error' &&
-    // mpv reports buffering through status rather than ranges, so an empty
-    // buffered list from it is not evidence of a stall.
-    (player.mpvMode === 'playing' || ahead >= READY_BUFFER_SEC || player.status === 'paused')
+
+  // Readiness is a statement about buffered data, never about whether we are
+  // paused — see shared/together/readiness.ts. Tying it to pause state created
+  // a loop the room could not escape: paused => "ready" => resume => stall =>
+  // paused, cycling several times a second.
+  const ready = decideReadiness({
+    hasItem: !!player.item,
+    status: player.status,
+    // mpv renders out of process and never fills `buffered`, so it reports no
+    // opinion rather than an empty one.
+    bufferedAhead: player.mpvMode === 'playing' ? null : ahead,
+    wasReady: lastReported
+  })
+  lastReported = ready
 
   platform.together.report({
     ready,
@@ -519,6 +553,7 @@ function startController(): void {
   driftState = initialDriftState()
   lastAppliedEpoch = -1
   lastReportedContentKey = ''
+  lastReported = false
 
   // Every user action becomes a request to the room. Nothing is applied
   // locally here — the timeline that comes back is what moves this player,

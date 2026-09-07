@@ -6,6 +6,7 @@
 // broadcasts snapshots, and the whole thing is testable without a network.
 
 import {
+  AUTO_PAUSE_COOLDOWN_MS,
   BALLOT_WINDOW_MS,
   TOGETHER_PROTOCOL,
   GATE_LEAD_MS,
@@ -33,6 +34,8 @@ export interface RoomState {
   content: ContentRef | null
   /** Set when playback was suspended by buffering, so it can resume itself. */
   autoResume: boolean
+  /** When the room last resumed itself, for the anti-strobe cooldown. */
+  lastAutoResumeAt: number
   ballotSeq: number
 }
 
@@ -45,6 +48,7 @@ export function createRoom(roomId: string, now: number): RoomState {
     ballots: [],
     content: null,
     autoResume: false,
+    lastAutoResumeAt: 0,
     ballotSeq: 1
   }
 }
@@ -170,7 +174,13 @@ export function report(
   // the second case would let a scheduled start fire without somebody who
   // dropped out during the lead-in — the room leaves them behind at the exact
   // moment the gate exists to prevent that.
-  if (!data.ready && (isRolling(room, now) || room.timeline.startAtTs !== null)) {
+  const stalling = !data.ready && (isRolling(room, now) || room.timeline.startAtTs !== null)
+  if (stalling && now - room.lastAutoResumeAt < AUTO_PAUSE_COOLDOWN_MS) {
+    // Too soon after the last automatic resume to stop again. Believing this
+    // member every time would let one flapping connection strobe the room.
+    return changed()
+  }
+  if (stalling) {
     // Somebody stalled. Everyone waits — this is the behaviour that makes a
     // room feel like a sofa rather than two separate screens.
     suspend(room, 'buffering', memberId, now)
@@ -196,6 +206,7 @@ function maybeResume(room: RoomState, now: number): Omit<Effect, 'changed'> {
   if (!room.autoResume || !room.timeline.paused) return {}
   if (!allReady(room)) return {}
   room.autoResume = false
+  room.lastAutoResumeAt = now
   scheduleStart(room, room.timeline.mediaTime, now)
   return { notice: { level: 'ok', title: 'Everyone is ready', desc: 'Starting together.' } }
 }

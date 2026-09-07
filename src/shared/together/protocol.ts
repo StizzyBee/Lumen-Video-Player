@@ -29,6 +29,14 @@ export const GATE_LEAD_MS = 900
 export const MEMBER_TIMEOUT_MS = 20_000
 /** Grace period before a dropped member is removed, so a blip does not evict. */
 export const REJOIN_GRACE_MS = 12_000
+/**
+ * Minimum gap between one automatic resume and the next automatic pause. A
+ * watcher whose readiness oscillates — an older client, or a connection right
+ * on the edge — would otherwise stop and start the room once per heartbeat.
+ * Damping it here means no single participant can strobe everyone's playback.
+ */
+export const AUTO_PAUSE_COOLDOWN_MS = 3000
+
 /** How long a ballot stays open. */
 export const BALLOT_WINDOW_MS = 45_000
 

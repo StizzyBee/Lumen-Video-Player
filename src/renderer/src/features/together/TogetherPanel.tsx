@@ -8,7 +8,7 @@ import { motion } from 'motion/react'
 import {
   X, Users, Copy, Check, Radio, Gavel, ThumbsUp, ThumbsDown, ShieldOff,
   Crown, WifiOff, FileWarning, Headphones, Pause, Hourglass, Globe, House,
-  Download, ExternalLink, CircleQuestionMark
+  Download, ExternalLink, CircleQuestionMark, ClipboardPaste
 } from 'lucide-react'
 import { useTogether } from '@/core/store/together'
 import { useSettings } from '@/core/store/settings'
@@ -215,8 +215,16 @@ function MeshSetup({ compact = false }: { compact?: boolean }): ReactNode {
 function StartPanel({ onShowGuide }: { onShowGuide: () => void }): ReactNode {
   const together = useTogether()
   const settings = useSettings((s) => s.settings.together)
+  const clipboardInvite = useTogether((s) => s.clipboardInvite)
+  const checkClipboard = useTogether((s) => s.checkClipboard)
   const [invite, setInvite] = useState(settings.lastRelayUrl)
   const [busy, setBusy] = useState(false)
+
+  // Someone who was just sent an invite almost certainly has it on the
+  // clipboard. Offering it directly turns joining into a single click.
+  useEffect(() => {
+    void checkClipboard()
+  }, [checkClipboard])
 
   // One field: the invite token carries both the address and the room code, so
   // there is no way to get one right and the other wrong.
@@ -252,6 +260,28 @@ function StartPanel({ onShowGuide }: { onShowGuide: () => void }): ReactNode {
           onChange={(e) => together.setDisplayName(e.target.value)}
         />
       </div>
+
+      {clipboardInvite && (
+        <div className={styles.clipCard}>
+          <div className={styles.clipTitle}>
+            <ClipboardPaste size={15} />
+            You have an invite ready
+          </div>
+          <code className={styles.clipCode}>{clipboardInvite.roomId}</code>
+          <Button
+            variant="primary"
+            disabled={busy}
+            onClick={() => {
+              setBusy(true)
+              void together
+                .join(clipboardInvite.url, clipboardInvite.roomId)
+                .finally(() => setBusy(false))
+            }}
+          >
+            {busy ? 'Joining…' : `Join room ${clipboardInvite.roomId}`}
+          </Button>
+        </div>
+      )}
 
       <div className={styles.section}>
         <div className={styles.sectionTitle}>Host a watch party</div>
@@ -292,7 +322,7 @@ function StartPanel({ onShowGuide }: { onShowGuide: () => void }): ReactNode {
 
       <button className={styles.guideLink} onClick={onShowGuide}>
         <CircleQuestionMark size={14} />
-        How does this work?
+        How watch parties work
       </button>
     </div>
   )
@@ -546,9 +576,6 @@ export function TogetherPanel(): ReactNode {
         <span className={styles.headTitle}>
           {room ? `Watching together · ${room.members.length}` : 'Watch together'}
         </span>
-        <IconButton size="sm" label="How watch parties work" onClick={() => setGuideOpen(true)}>
-          <CircleQuestionMark size={15} />
-        </IconButton>
         <IconButton size="sm" label="Close" onClick={() => together.setPanelOpen(false)}>
           <X size={15} />
         </IconButton>
@@ -646,6 +673,11 @@ export function TogetherPanel(): ReactNode {
                 </span>
               </div>
             </div>
+
+            <button className={styles.guideLink} onClick={() => setGuideOpen(true)}>
+              <CircleQuestionMark size={14} />
+              How watch parties work
+            </button>
 
             <Button variant="ghost" onClick={together.leave}>
               Leave the watch party

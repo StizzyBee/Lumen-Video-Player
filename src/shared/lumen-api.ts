@@ -175,6 +175,8 @@ export interface LumenApi {
   }
   shell: {
     showInFolder(path: string): void
+    /** Current clipboard text. Used to spot a watch-party invite. */
+    readClipboardText(): Promise<string>
     /** Save a captured frame; returns the chosen path or null if cancelled */
     saveScreenshot(pngDataUrl: string, suggestedName: string): Promise<string | null>
   }

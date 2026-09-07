@@ -260,6 +260,13 @@ export function createMockLumen(): LumenApi {
     },
     shell: {
       showInFolder: () => {},
+      readClipboardText: async () => {
+        try {
+          return await navigator.clipboard.readText()
+        } catch {
+          return ''
+        }
+      },
       saveScreenshot: async (dataUrl, name) => {
         const a = document.createElement('a')
         a.href = dataUrl

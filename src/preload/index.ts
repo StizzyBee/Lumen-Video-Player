@@ -100,6 +100,7 @@ const api: LumenApi = {
   },
   shell: {
     showInFolder: (path) => ipcRenderer.send('shell:show-in-folder', path),
+    readClipboardText: () => ipcRenderer.invoke('shell:read-clipboard'),
     saveScreenshot: (pngDataUrl, suggestedName) =>
       ipcRenderer.invoke('shell:save-screenshot', pngDataUrl, suggestedName)
   },

@@ -421,3 +421,35 @@
   color: #fff;
   background: rgba(255, 255, 255, 0.06);
 }
+
+/* The panel starts at the top of the window, where the app's title bar and the
+   Windows caption buttons sit above it (z-index 40 vs 30). Without this the
+   header's controls land underneath Maximize and Close — clicking the panel's
+   own X would close the app. Matches the 48px .topBar already uses. */
+.head {
+  padding-top: 48px;
+}
+
+/* An invite found on the clipboard — the fastest path into a room. */
+.clipCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--r-lg);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-soft-2);
+}
+.clipTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-weight: 600;
+  font-size: var(--fs-body);
+}
+.clipCode {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: var(--fs-subtitle);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}

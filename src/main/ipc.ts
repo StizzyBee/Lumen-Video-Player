@@ -1,4 +1,4 @@
-import { ipcMain, dialog, shell, app, powerSaveBlocker, screen, BrowserWindow } from 'electron'
+import { ipcMain, dialog, shell, app, clipboard, powerSaveBlocker, screen, BrowserWindow } from 'electron'
 import { promises as fsp } from 'node:fs'
 import { join } from 'node:path'
 import type { Library } from './library'
@@ -398,6 +398,8 @@ export function registerIpc(deps: IpcDeps): void {
     await fsp.writeFile(res.filePath, Buffer.from(m[1], 'base64'))
     return res.filePath
   })
+  ipcMain.handle('shell:read-clipboard', () => clipboard.readText())
+
   ipcMain.handle('app:version', () => app.getVersion())
   ipcMain.handle('app:get-opened-file', () => deps.openedFile)
 
