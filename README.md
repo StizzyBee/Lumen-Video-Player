@@ -12,6 +12,7 @@
 - **Video controls** — switch render resolution (e.g. 1440p ↔ 1080p on higher-res files), an HDR/tone toggle, and full color grading (brightness, contrast, saturation, gamma) live during playback.
 - **Broad format support** — H.264, HEVC/H.265, VP9 and AV1 in MP4/MOV/WebM play natively (HDR engages on HDR displays). MKV, M2TS/MTS, VOB, MXF, AVI, WMV, FLV, RealMedia and dozens of other containers play through the optional **mpv engine** — install [mpv](https://mpv.io/installation/) and point Lumen at it in Settings → Video.
 - **Library** — your Windows Videos folder indexed automatically on first run, background scanning and watching, instant fuzzy search, grid/list views, resolution filters (4K · 1440p · 1080p · 720p · SD), sorting, favorites, tags.
+- **Watch together** (`Ctrl+Shift+W`) — watch the same film with friends anywhere in the world, locked to the same frame. Everyone plays their own copy; nothing is uploaded. Drift is corrected by nudging the playback rate rather than seeking, so the audio never clicks or slips. Anyone can pause; the room can vote to resume, or to take pause and seek off someone for 5/10/60 minutes. NAT is handled with one-click ZeroTier or Tailscale setup from inside the app. See [docs/TOGETHER.md](docs/TOGETHER.md).
 - **Command palette** (`Ctrl+Shift+P`) and fully customizable keyboard shortcuts.
 - **Subtitle studio** — external SRT/VTT with live-styled rendering: font, size, color, outline, shadow, background, position, delay.
 - **Private by design** — no telemetry, no ads, no account, fully offline.
@@ -27,7 +28,8 @@ This repository is under active development. See [docs/ROADMAP.md](docs/ROADMAP.
 | Library scan/watch, home dashboard, search | ✅ Shipped |
 | Subtitles (external, styled), speed, loop, screenshots | ✅ Shipped |
 | Command palette, shortcuts, settings, playlists | ✅ Shipped |
-| Windows installer (`release/Lumen Setup 0.1.0.exe`) | ✅ Shipped |
+| Watch together (synchronized watch parties) | ✅ Shipped |
+| Windows installer (`release/Lumen-Setup-0.3.0.exe`) | ✅ Shipped |
 | Full-codec native engine (mpv: MKV/HEVC/all formats) | 🔜 Planned (M4) |
 | Clip export, GIF capture (ffmpeg) | 🔜 Planned (M5) |
 | Plugin SDK | 🔜 Planned (M6) |
@@ -57,8 +59,10 @@ src/
   preload/    Typed context bridge (the `lumen` API surface)
   renderer/   React UI: design system, features, playback engines, stores
   shared/     Types + IPC contract shared by all three
+server/       Optional standalone relay for watch parties (`npm run relay`)
 docs/
   ARCHITECTURE.md   Process model, layers, IPC contract, plugin design
+  TOGETHER.md       Watch parties: sync design, pause voting, reaching across NAT
   DESIGN.md         Design language, tokens, wireframes, component hierarchy
   ROADMAP.md        Milestones with acceptance criteria
   DECISIONS.md      Architecture Decision Records
