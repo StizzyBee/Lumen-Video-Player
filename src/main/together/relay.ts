@@ -5,7 +5,9 @@
 // file also runs standalone (see server/) for anyone who would rather put a
 // small always-on box in the middle than open a port at home.
 
+import { createServer, type Server as HttpServer } from 'node:http'
 import { WebSocketServer, type WebSocket } from 'ws'
+import { serveStream, type StreamSource } from './stream'
 import {
   MEMBER_TIMEOUT_MS,
   REJOIN_GRACE_MS,
@@ -25,6 +27,7 @@ import {
   remove,
   report,
   setContent,
+  setStream,
   snapshot,
   tick,
   type Effect,
@@ -45,10 +48,16 @@ export interface RelayOptions {
   seedRoom?: string
   /** Rooms are created on demand when false — used by the standalone relay. */
   fixedRooms?: boolean
+  /** Shown to guests in a streaming room. */
+  streamTitle?: string
+  streamDurationSec?: number
 }
 
 export class TogetherRelay {
   private wss: WebSocketServer | null = null
+  private http: HttpServer | null = null
+  /** The one file this relay will serve, in a streaming room. */
+  private source: StreamSource | null = null
   private rooms = new Map<string, RoomState>()
   private connections = new Map<WebSocket, Connection>()
   private pending = new Map<string, NodeJS.Timeout>()
@@ -60,8 +69,31 @@ export class TogetherRelay {
   }
 
   get port(): number {
-    const addr = this.wss?.address()
+    const addr = this.http?.address()
     return typeof addr === 'object' && addr ? addr.port : this.opts.port
+  }
+
+  /**
+   * Offer a file to the room. Serving it from the relay's own port means
+   * guests need nothing beyond the address they already connected to.
+   */
+  setStreamSource(source: StreamSource | null, roomId: string): void {
+    this.source = source
+    const room = this.rooms.get(roomId)
+    if (!room) return
+    setStream(
+      room,
+      source
+        ? {
+            token: source.token,
+            title: this.opts.streamTitle ?? 'Shared video',
+            durationSec: this.opts.streamDurationSec ?? 0,
+            ext: source.ext,
+            guestPlayable: source.guestPlayable
+          }
+        : null
+    )
+    this.broadcast(roomId, { t: 'room', room: snapshot(room, Date.now()) })
   }
 
   async start(): Promise<{ port: number; roomId: string }> {
@@ -69,15 +101,34 @@ export class TogetherRelay {
     if (!this.rooms.has(roomId)) this.rooms.set(roomId, createRoom(roomId, Date.now()))
 
     await new Promise<void>((resolve, reject) => {
-      const wss = new WebSocketServer({ port: this.opts.port, host: this.opts.host })
+      // One port for both jobs: the socket carries the timeline, and the same
+      // listener serves the film in a streaming room. A guest that can reach
+      // the room can therefore always reach the video.
+      const http = createServer((req, res) => {
+        const url = req.url ?? '/'
+        const match = /^\/stream\/([0-9a-f]{32})(?:$|\?)/.exec(url)
+        if (!match) {
+          res.writeHead(404, { 'Content-Type': 'text/plain' }).end('lumen together relay')
+          return
+        }
+        // Compare against the live token so a stale link stops working the
+        // moment the host stops sharing.
+        serveStream(req, res, this.source && this.source.token === match[1] ? this.source : null)
+      })
+      this.http = http
+
+      const wss = new WebSocketServer({ server: http })
       this.wss = wss
-      wss.once('error', reject)
-      wss.once('listening', () => {
-        wss.off('error', reject)
-        wss.on('error', (err) => console.error('[together] relay error', err))
+      wss.on('error', (err) => console.error('[together] relay error', err))
+      wss.on('connection', (socket) => this.onConnection(socket))
+
+      http.once('error', reject)
+      http.once('listening', () => {
+        http.off('error', reject)
+        http.on('error', (err) => console.error('[together] relay error', err))
         resolve()
       })
-      wss.on('connection', (socket) => this.onConnection(socket))
+      http.listen(this.opts.port, this.opts.host)
     })
 
     // Housekeeping: expire ballots and restrictions, evict silent members.
@@ -100,6 +151,9 @@ export class TogetherRelay {
     this.connections.clear()
     this.wss?.close()
     this.wss = null
+    this.http?.close()
+    this.http = null
+    this.source = null
   }
 
   private onConnection(socket: WebSocket): void {

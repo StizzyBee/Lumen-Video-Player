@@ -22,6 +22,7 @@ import {
   type Member,
   type Restriction,
   type RoomSnapshot,
+  type StreamOffer,
   type Timeline
 } from './protocol'
 
@@ -32,6 +33,8 @@ export interface RoomState {
   restrictions: Restriction[]
   ballots: Ballot[]
   content: ContentRef | null
+  /** Set when this room serves the host's file to everyone else. */
+  stream: StreamOffer | null
   /** Set when playback was suspended by buffering, so it can resume itself. */
   autoResume: boolean
   /** When the room last resumed itself, for the anti-strobe cooldown. */
@@ -47,6 +50,7 @@ export function createRoom(roomId: string, now: number): RoomState {
     restrictions: [],
     ballots: [],
     content: null,
+    stream: null,
     autoResume: false,
     lastAutoResumeAt: 0,
     ballotSeq: 1
@@ -139,6 +143,8 @@ export function remove(room: RoomState, memberId: string, now: number): Effect {
 }
 
 function matchContent(room: RoomState, content: ContentRef): Member['contentMatch'] {
+  // One shared source: there is nothing for a guest's own file to differ from.
+  if (room.stream) return 'match'
   if (!room.content) return 'unknown'
   return contentMatches(room.content, content) ? 'match' : 'mismatch'
 }
@@ -148,6 +154,20 @@ export function setContent(room: RoomState, memberId: string, content: ContentRe
   if (!member) return none
   if (!room.content) room.content = content
   member.contentMatch = matchContent(room, content)
+  return changed()
+}
+
+/**
+ * Offer the host's file to the room. Everyone is marked unmatched-but-fine:
+ * in a streaming room there is only one copy, so the same-file check that
+ * protects library rooms has nothing to compare and would only raise noise.
+ */
+export function setStream(room: RoomState, offer: StreamOffer | null): Effect {
+  room.stream = offer
+  if (offer) {
+    room.content = { key: offer.token, title: offer.title, durationSec: offer.durationSec }
+    for (const m of room.members.values()) m.contentMatch = 'match'
+  }
   return changed()
 }
 
@@ -519,6 +539,7 @@ export function snapshot(room: RoomState, now: number): RoomSnapshot {
     members: [...room.members.values()].sort((a, b) => a.joinedAt - b.joinedAt),
     restrictions: room.restrictions,
     ballots: room.ballots,
-    content: room.content
+    content: room.content,
+    stream: room.stream
   }
 }

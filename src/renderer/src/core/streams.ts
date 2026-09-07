@@ -53,12 +53,13 @@ export function streamTitle(url: string): string {
 }
 
 /** Synthetic LibraryItem for a stream. Never persisted; id marks it as such. */
-export function makeStreamItem(url: string): LibraryItem {
+export function makeStreamItem(url: string, title?: string): LibraryItem {
   return {
     id: `${STREAM_ID_PREFIX}${url}`,
     path: url,
     fileName: streamTitle(url),
-    title: streamTitle(url),
+    // A watch-party stream knows the real film name; a URL alone does not.
+    title: title || streamTitle(url),
     folder: '',
     ext: streamExt(url),
     sizeBytes: 0,

@@ -7,6 +7,7 @@ import { MESH_PROVIDERS, type MeshProvider } from '@shared/together/mesh'
 import { TogetherClient } from './client'
 import { TogetherRelay } from './relay'
 import { installMesh, joinZeroTier, meshStatus, scanAddresses } from './mesh'
+import { describeSource } from './stream'
 
 export interface TogetherDeps {
   win: () => BrowserWindow
@@ -17,6 +18,13 @@ interface HostOptions {
   memberId: string
   content: ContentRef | null
   port?: number
+  /**
+   * Serve this file to the room, so only the host needs a copy. Absent for an
+   * ordinary room where everyone plays their own.
+   */
+  streamPath?: string
+  streamTitle?: string
+  streamDurationSec?: number
 }
 
 interface JoinOptions {
@@ -49,8 +57,23 @@ export function registerTogetherIpc(deps: TogetherDeps): () => void {
     // Bind on every interface: the entire point of hosting is that somebody
     // else can reach it. Which of our addresses will actually work for them is
     // reported back, ranked, rather than assumed — see scanAddresses().
-    relay = new TogetherRelay({ port, host: '0.0.0.0', seedRoom: roomId })
+    relay = new TogetherRelay({
+      port,
+      host: '0.0.0.0',
+      seedRoom: roomId,
+      streamTitle: opts.streamTitle,
+      streamDurationSec: opts.streamDurationSec
+    })
     const started = await relay.start()
+
+    // A streaming room registers exactly one file, addressed by a random
+    // token. Nothing else on disk is reachable through the relay.
+    let stream: { guestPlayable: boolean; ext: string } | null = null
+    if (opts.streamPath) {
+      const source = await describeSource(opts.streamPath)
+      relay.setStreamSource(source, started.roomId)
+      stream = { guestPlayable: source.guestPlayable, ext: source.ext }
+    }
 
     client.connect({
       // The host talks to its own relay over loopback, so its clock estimate
@@ -62,7 +85,7 @@ export function registerTogetherIpc(deps: TogetherDeps): () => void {
       content: opts.content
     })
 
-    return { roomId: started.roomId, port: started.port, addresses: scanAddresses() }
+    return { roomId: started.roomId, port: started.port, addresses: scanAddresses(), stream }
   })
 
   ipcMain.handle('together:join', async (_e, opts: JoinOptions) => {

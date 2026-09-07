@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   ChevronLeft, Play, Pause, Volume2, VolumeX, FastForward, RotateCcw,
-  FolderOpen, TriangleAlert, Camera, Activity, Repeat, X, MonitorPlay, Download
+  FolderOpen, TriangleAlert, Camera, Activity, Repeat, X, MonitorPlay, Download, Maximize2
 } from 'lucide-react'
 import { usePlayer } from '@/core/store/player'
 import { useSettings } from '@/core/store/settings'
@@ -31,6 +31,19 @@ export function PlayerView(): ReactNode {
   const embeddedMpv = p.mpvMode === 'playing' && p.mpvEmbedded
 
   const togetherOpen = useTogether((s) => s.panelOpen)
+  const docked = useUi((s) => s.docked)
+  const inWatchParty = useTogether((s) => s.room !== null)
+
+  /**
+   * Leaving a watch party's player must not stop the film — the room carries
+   * on without you and you would come back to a different scene. So Back
+   * shrinks the player into a corner instead, and only closes outright when
+   * there is no room to leave behind.
+   */
+  const goBack = useCallback(() => {
+    if (useTogether.getState().room) useUi.getState().setDocked(true)
+    else usePlayer.getState().close()
+  }, [])
 
   const [chromeVisible, setChromeVisible] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -276,7 +289,7 @@ export function PlayerView(): ReactNode {
 
   return (
     <motion.div
-      className={`${styles.view} ${showChrome ? '' : styles.chromeHidden} ${showChrome ? '' : styles.hideCursor}`}
+      className={`${styles.view} ${docked ? styles.docked : ''} ${showChrome || docked ? '' : styles.chromeHidden} ${showChrome || docked ? '' : styles.hideCursor}`}
       initial={{ opacity: 0, scale: 1.02 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, transition: { duration: 0.18 } }}
@@ -354,9 +367,9 @@ export function PlayerView(): ReactNode {
       )}
 
       {/* top bar */}
-      {!mini && (
+      {!mini && !docked && (
         <div className={`${styles.topBar} ${styles.chrome}`} data-controls>
-          <IconButton onVideo size="lg" label="Back" kbd="Esc" onClick={() => p.close()}>
+          <IconButton onVideo size="lg" label="Back" kbd="Esc" onClick={goBack}>
             <ChevronLeft size={26} />
           </IconButton>
           <div className={styles.topTitle}>{p.item?.title}</div>
@@ -453,12 +466,28 @@ export function PlayerView(): ReactNode {
 
       {p.statsVisible && <StatsOverlay />}
 
-      <div className={styles.chrome}>
-        <ControlsBar onMenuOpenChange={setMenuOpen} />
-      </div>
+      {docked ? (
+        <div className={styles.dockBar} data-controls>
+          <IconButton onVideo size="sm" label={p.status === 'playing' ? 'Pause' : 'Play'} onClick={() => p.togglePlay()}>
+            {p.status === 'playing' ? <Pause size={16} /> : <Play size={16} />}
+          </IconButton>
+          <div className={styles.dockTitle}>{p.item?.title}</div>
+          {inWatchParty && <span className={styles.dockBadge}>Watch party</span>}
+          <IconButton onVideo size="sm" label="Back to the player" onClick={() => ui.setDocked(false)}>
+            <Maximize2 size={15} />
+          </IconButton>
+          <IconButton onVideo size="sm" label="Close" onClick={() => p.close()}>
+            <X size={15} />
+          </IconButton>
+        </div>
+      ) : (
+        <div className={styles.chrome}>
+          <ControlsBar onMenuOpenChange={setMenuOpen} />
+        </div>
+      )}
 
-      <AnimatePresence>{ui.playlistDrawerOpen && !mini && <PlaylistDrawer />}</AnimatePresence>
-      <AnimatePresence>{togetherOpen && !mini && <TogetherPanel />}</AnimatePresence>
+      <AnimatePresence>{ui.playlistDrawerOpen && !mini && !docked && <PlaylistDrawer />}</AnimatePresence>
+      <AnimatePresence>{togetherOpen && !mini && !docked && <TogetherPanel />}</AnimatePresence>
     </motion.div>
   )
 }

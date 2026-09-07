@@ -453,3 +453,40 @@
   font-weight: 700;
   letter-spacing: 0.18em;
 }
+
+/* Choosing the kind of room. Presented as two explicit choices rather than a
+   toggle, because "who needs the file" changes what a guest has to do. */
+.modeCard {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: var(--sp-3);
+  text-align: left;
+  border-radius: var(--r-lg);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  transition: background var(--t-fast), border-color var(--t-fast);
+}
+.modeCard:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: var(--accent);
+}
+.modeCard > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent);
+}
+.modeCard strong {
+  display: block;
+  font-size: var(--fs-body);
+  font-weight: 600;
+}
+.modeDesc {
+  display: block;
+  margin-top: 3px;
+  font-size: var(--fs-caption);
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.55);
+}

@@ -9,7 +9,7 @@
 import { type ReactNode } from 'react'
 import {
   Copy, Play, Users, ClipboardPaste, Globe, Gavel, Headphones, FileWarning,
-  Hourglass, ShieldOff, Wifi
+  Hourglass, ShieldOff, Wifi, Library, Share2, PictureInPicture2
 } from 'lucide-react'
 import { Kbd } from '@/components/ui/bits'
 import styles from './TogetherGuide.module.css'
@@ -92,8 +92,8 @@ export function TogetherGuide(): ReactNode {
     <div className={styles.guide}>
       <p className={styles.lede}>
         Watch the same film with someone anywhere in the world and stay on the same frame the whole way
-        through — including the sound. Everyone plays their own copy from their own PC; nothing is
-        uploaded and nothing is streamed between you.
+        through — including the sound. Either everyone plays their own copy, or one of you shares theirs
+        with the rest. Nothing is ever uploaded to anyone else&apos;s server.
       </p>
 
       <SyncDiagram />
@@ -110,7 +110,8 @@ export function TogetherGuide(): ReactNode {
               <Users size={13} className={styles.inlineIcon} /> button in the player controls.
             </Step>
             <Step n={3}>
-              Choose <strong>Start a room</strong>.
+              Pick <strong>Everyone has the film</strong> if your friends have their own copy, or{' '}
+              <strong>Only I have the film</strong> to stream it from your PC.
             </Step>
             <Step n={4}>
               Hit <strong>Copy invite</strong> and send that one line to your friend — any chat app will do.
@@ -123,7 +124,9 @@ export function TogetherGuide(): ReactNode {
             <ClipboardPaste size={15} /> If you were invited
           </div>
           <ol className={styles.steps}>
-            <Step n={1}>Open your own copy of the same video.</Step>
+            <Step n={1}>
+              Open your own copy of the film — or skip this if you were told it&apos;s being streamed.
+            </Step>
             <Step n={2}>
               Press <Kbd>Ctrl</Kbd> <Kbd>Shift</Kbd> <Kbd>W</Kbd>.
             </Step>
@@ -146,6 +149,21 @@ export function TogetherGuide(): ReactNode {
         </span>
       </div>
 
+      <h3 className={styles.heading}>Two kinds of room</h3>
+
+      <Note icon={<Library size={15} />} title="Everyone has the film">
+        The default. Each person plays their own copy, so nothing is sent between you and any format
+        Lumen can open will work. Lumen checks you are all on the same cut and warns if someone is not.
+      </Note>
+
+      <Note icon={<Share2 size={15} />} title="Only I have the film">
+        Your friends watch straight from your PC — they need no copy, no library, nothing but the
+        invite. Two things to know: it uses <strong>your</strong> upload bandwidth, roughly the video&apos;s
+        bitrate for each person watching, so one or two friends is realistic on a home connection. And
+        guests decode in the browser engine, so stick to <strong>MP4, M4V, WebM or MOV</strong> — Lumen
+        warns you if the file you are sharing is something they cannot play.
+      </Note>
+
       <h3 className={styles.heading}>Once you&apos;re in</h3>
 
       <Note icon={<Play size={15} />} title="Play, pause and seek move everyone">
@@ -163,6 +181,12 @@ export function TogetherGuide(): ReactNode {
       <Note icon={<Hourglass size={15} />} title="The room waits for you">
         If anyone&apos;s video stalls, or somebody new joins, everything pauses until they&apos;re ready and
         then picks up from exactly where it stopped. You never have to hunt for the right spot again.
+      </Note>
+
+      <Note icon={<PictureInPicture2 size={15} />} title="Browse without leaving">
+        Pressing <strong>Back</strong> during a watch party shrinks the video into a corner instead of
+        closing it, so you can search your library or change a setting while the film carries on. Click
+        the expand button on the little player to go back to full size.
       </Note>
 
       <Note icon={<Headphones size={15} />} title="If your sound feels off">

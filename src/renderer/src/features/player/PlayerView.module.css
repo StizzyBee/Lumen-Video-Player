@@ -297,3 +297,60 @@
 .drawerName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-body); }
 .drawerDur { font-size: var(--fs-caption); color: rgba(255, 255, 255, 0.45); font-variant-numeric: tabular-nums; }
 .drawerEmpty { padding: var(--sp-5); color: rgba(255, 255, 255, 0.5); font-size: var(--fs-caption); line-height: 1.5; }
+
+/* ── Docked (corner) player ───────────────────────────────────────────────
+   Leaving a watch party's player must not stop the film, so Back shrinks it
+   here instead. Distinct from .mini, which shrinks the whole OS window. */
+.view.docked {
+  inset: auto;
+  right: var(--sp-5);
+  bottom: var(--sp-5);
+  width: min(384px, 34vw);
+  aspect-ratio: 16 / 9;
+  height: auto;
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-2), 0 0 0 1px var(--stroke-strong);
+  overflow: hidden;
+  /* Above the pages it floats over, below dialogs and toasts. */
+  z-index: var(--z-popover);
+}
+
+.dockBar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  background: var(--scrim-bottom);
+  opacity: 0;
+  transition: opacity var(--t-fast);
+}
+/* Controls stay out of the way until you go looking for them. */
+.view.docked:hover .dockBar,
+.view.docked:focus-within .dockBar {
+  opacity: 1;
+}
+
+.dockTitle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #fff;
+  font-size: var(--fs-caption);
+  font-weight: 500;
+}
+
+.dockBadge {
+  flex: none;
+  padding: 2px 7px;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+}

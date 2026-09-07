@@ -37,6 +37,12 @@ interface UiStore {
   playlistDrawerOpen: boolean
   fullscreen: boolean
   miniMode: boolean
+  /**
+   * The player shrunk to a floating corner card while you browse — the way
+   * leaving a video on YouTube keeps it playing rather than stopping it.
+   * Distinct from miniMode, which shrinks the whole OS window.
+   */
+  docked: boolean
   dropActive: boolean
   contextMenu: { anchor: MenuAnchor; entries: MenuEntry[] } | null
   toasts: Toast[]
@@ -49,6 +55,7 @@ interface UiStore {
   setPlaylistDrawer(open: boolean): void
   setFullscreen(on: boolean): void
   toggleMiniMode(): void
+  setDocked(on: boolean): void
   setDropActive(on: boolean): void
   openContextMenu(anchor: MenuAnchor, entries: MenuEntry[]): void
   closeContextMenu(): void
@@ -70,6 +77,7 @@ export const useUi = create<UiStore>((set, get) => ({
   playlistDrawerOpen: false,
   fullscreen: false,
   miniMode: false,
+  docked: false,
   dropActive: false,
   contextMenu: null,
   toasts: [],
@@ -82,14 +90,27 @@ export const useUi = create<UiStore>((set, get) => ({
   navigate(view) {
     const cur = get().view
     if (cur.name !== 'player' && cur.name !== 'settings') set({ lastBrowseView: cur })
-    set({ view, contextMenu: null })
+    // Going back to the player means giving it the whole window again.
+    set({ view, contextMenu: null, docked: view.name === 'player' ? false : get().docked })
+  },
+
+  setDocked(on) {
+    if (on) {
+      // Docking is a way of leaving the player without stopping it, so it has
+      // to put the browsing UI back where the viewer left it.
+      const { fullscreen, lastBrowseView } = get()
+      if (fullscreen) get().setFullscreen(false)
+      set({ docked: true, view: lastBrowseView, playlistDrawerOpen: false })
+    } else {
+      set({ docked: false, view: { name: 'player' } })
+    }
   },
 
   closePlayerView() {
     const { fullscreen, miniMode } = get()
     if (fullscreen) get().setFullscreen(false)
     if (miniMode) get().toggleMiniMode()
-    set({ view: get().lastBrowseView, playlistDrawerOpen: false })
+    set({ view: get().lastBrowseView, playlistDrawerOpen: false, docked: false })
   },
 
   setPaletteOpen(open, seed = '') {

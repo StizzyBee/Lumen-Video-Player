@@ -78,6 +78,41 @@ timeline. Nudge it until dialogue lands with everyone else.
 runtime within 5 seconds, so two different encodes of the same film pair up
 while a different cut does not. A mismatch is flagged rather than blocked.
 
+## Two kinds of room
+
+**Everyone has the film** (default). Each watcher plays their own copy. Nothing
+crosses the network but timestamps, and any container Lumen can open works —
+including the ones only mpv can decode. Watchers are matched on title and
+runtime so a different cut is flagged.
+
+**Only I have the film.** The host serves their file to everyone else over the
+same port the relay already listens on, and guests play it as an ordinary
+remote video. A guest needs no copy, no library, and no mpv — just the invite.
+
+Two honest constraints:
+
+- **Bandwidth is the host's.** Roughly one copy of the video's bitrate per
+  guest, uploaded from their connection. A 6 Mbps 1080p file to two friends is
+  ~12 Mbps up, which is at or past what many home connections manage. This is a
+  small-group feature, not a broadcast one.
+- **Guests decode in Chromium**, so MP4/M4V/WebM/MOV work and MKV/HEVC does
+  not, even when the host plays it fine through mpv. The host is warned when
+  they share something guests cannot play, rather than everyone staring at a
+  blank screen.
+
+The file is addressed by a random 128-bit token that maps to exactly one
+absolute path. There is no directory to enumerate and no path to traverse, and
+the token stops working the moment the host stops sharing. Because it serves
+from the host's own disk, a streaming room has to be self-hosted — the
+standalone relay has no access to anyone's files.
+
+## Leaving without stopping
+
+Pressing Back during a watch party shrinks the player into a corner card
+instead of closing it, the way navigating away from a video on YouTube keeps it
+playing. Closing outright would drop you from the room and bring you back to a
+different scene. Outside a watch party Back still closes, as before.
+
 ## Pause democracy
 
 - **Anyone can pause, instantly, with no vote.** Getting up should not need a
@@ -158,6 +193,8 @@ if you rename a control, update the guide with it.
 | `src/shared/together/clock.ts` | Offset estimation and slewing |
 | `src/shared/together/drift.ts` | The correction ladder (pure, heavily tested) |
 | `src/shared/together/room.ts` | Authoritative room rules — votes, gating, restrictions |
+| `src/shared/together/readiness.ts` | Whether a watcher can play the next frame (pure) |
+| `src/main/together/stream.ts` | Serving the host's file: Range, MIME, token |
 | `src/shared/together/mesh.ts` | Address reach classification and invite parsing (pure) |
 | `src/main/together/mesh.ts` | Adapter scanning, winget install, ZeroTier join |
 | `src/main/together/relay.ts` | WebSocket server around the room |

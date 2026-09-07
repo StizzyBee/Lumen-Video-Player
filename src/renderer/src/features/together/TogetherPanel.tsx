@@ -8,7 +8,7 @@ import { motion } from 'motion/react'
 import {
   X, Users, Copy, Check, Radio, Gavel, ThumbsUp, ThumbsDown, ShieldOff,
   Crown, WifiOff, FileWarning, Headphones, Pause, Hourglass, Globe, House,
-  Download, ExternalLink, CircleQuestionMark, ClipboardPaste
+  Download, ExternalLink, CircleQuestionMark, ClipboardPaste, Library, Share2
 } from 'lucide-react'
 import { useTogether } from '@/core/store/together'
 import { useSettings } from '@/core/store/settings'
@@ -285,13 +285,29 @@ function StartPanel({ onShowGuide }: { onShowGuide: () => void }): ReactNode {
 
       <div className={styles.section}>
         <div className={styles.sectionTitle}>Host a watch party</div>
-        <p className={styles.help}>
-          Lumen runs the room on this PC and gives you one line to share. Everyone keeps their own copy of
-          the file — nothing is uploaded.
-        </p>
-        <Button variant="primary" icon={<Users size={16} />} onClick={() => void together.host()}>
-          Start a room
-        </Button>
+        <p className={styles.help}>Lumen runs the room on this PC and gives you one line to share.</p>
+
+        <button className={styles.modeCard} onClick={() => void together.host('library')}>
+          <Library size={17} />
+          <span>
+            <strong>Everyone has the film</strong>
+            <span className={styles.modeDesc}>
+              Each of you plays your own copy. Nothing is uploaded, and it works with any format Lumen
+              can open.
+            </span>
+          </span>
+        </button>
+
+        <button className={styles.modeCard} onClick={() => void together.host('stream')}>
+          <Share2 size={17} />
+          <span>
+            <strong>Only I have the film</strong>
+            <span className={styles.modeDesc}>
+              Your friends watch it straight from this PC — they need no copy and no library. Uses your
+              upload bandwidth, and works best with MP4 or WebM.
+            </span>
+          </span>
+        </button>
       </div>
 
       <div className={styles.divider}>
@@ -355,6 +371,17 @@ function HostingCard(): ReactNode {
         <span className={styles.hostLabel}>Room code</span>
         <span className={styles.hostCode}>{hosting.roomId}</span>
       </div>
+
+      {hosting.stream && (
+        <div className={hosting.stream.guestPlayable ? styles.reachGood : styles.reachWarn}>
+          <Share2 size={13} />
+          <span>
+            {hosting.stream.guestPlayable
+              ? 'Streaming from this PC — your friends need no copy'
+              : `Streaming .${hosting.stream.ext} — your friends' players may not decode it`}
+          </span>
+        </div>
+      )}
 
       {invite && best ? (
         <>

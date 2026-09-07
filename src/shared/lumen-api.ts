@@ -132,11 +132,22 @@ export interface LumenApi {
    */
   together: {
     /** Start the built-in relay and join it. Resolves with what to share. */
-    host(opts: { name: string; memberId: string; content: ContentRef | null; port?: number }): Promise<{
+    host(opts: {
+      name: string
+      memberId: string
+      content: ContentRef | null
+      port?: number
+      /** Serve this file to the room so only the host needs a copy. */
+      streamPath?: string
+      streamTitle?: string
+      streamDurationSec?: number
+    }): Promise<{
       roomId: string
       port: number
       /** Addresses to hand a friend, most-likely-to-work first. */
       addresses: NetAddress[]
+      /** Present for a streaming room; guestPlayable false means wrong codec. */
+      stream: { guestPlayable: boolean; ext: string } | null
     }>
     /** Join a room on someone else's relay. */
     join(opts: {

@@ -7,6 +7,7 @@ import {
   isRollingAt,
   positionAt,
   ROOM_CODE_RE,
+  streamUrlFrom,
   type Ballot,
   type Member,
   type Restriction
@@ -23,6 +24,7 @@ import {
   setPlaybackIntercept,
   usePlayer
 } from './player'
+import { makeStreamItem } from '@/core/streams'
 import { useSettings } from './settings'
 import { useUi } from './ui'
 
@@ -32,6 +34,12 @@ const TICK_MS = 250
 const REPORT_MS = 1000
 
 export type SyncQuality = 'locked' | 'close' | 'drifting' | 'off' | 'unknown'
+
+/**
+ * 'library' — everyone plays their own copy of the film.
+ * 'stream'  — only the host has it; the rest watch it from them.
+ */
+export type RoomMode = 'library' | 'stream'
 
 interface TogetherStore {
   status: TogetherStatus
@@ -45,8 +53,16 @@ interface TogetherStore {
   /** Signed ms this client sits from the room timeline. */
   driftMs: number
   quality: SyncQuality
+  /** The relay address this client actually reached, for deriving media URLs. */
+  relayUrl: string | null
   /** Set while hosting, so the UI can show what to share. */
-  hosting: { roomId: string; port: number; addresses: NetAddress[] } | null
+  hosting: {
+    roomId: string
+    port: number
+    addresses: NetAddress[]
+    /** Present in a streaming room; guestPlayable false means wrong codec. */
+    stream: { guestPlayable: boolean; ext: string } | null
+  } | null
   /** What mesh VPNs are installed and whether any is currently reachable. */
   mesh: MeshStatus | null
   meshInstalling: boolean
@@ -55,7 +71,8 @@ interface TogetherStore {
   lastDenial: { message: string; until?: number } | null
 
   init(): void
-  host(): Promise<void>
+  /** Host a room. 'stream' serves your file so only you need a copy of it. */
+  host(mode?: RoomMode): Promise<void>
   join(url: string, roomId: string): Promise<void>
   /** Join from a single pasted invite token. */
   joinInvite(invite: string): Promise<boolean>
@@ -116,6 +133,7 @@ export const useTogether = create<TogetherStore>((set, get) => ({
   clockSettled: false,
   driftMs: 0,
   quality: 'unknown',
+  relayUrl: null,
   hosting: null,
   clipboardInvite: null,
   mesh: null,
@@ -149,6 +167,7 @@ export const useTogether = create<TogetherStore>((set, get) => ({
             rttMs: e.rttMs,
             clockSettled: e.settled
           })
+          ensureStreamSource(e.room)
           applyTimeline(e.room)
           break
         case 'denied':
@@ -165,9 +184,14 @@ export const useTogether = create<TogetherStore>((set, get) => ({
     })
   },
 
-  async host() {
+  async host(mode = 'library') {
     if (!isDesktop) {
       useUi.getState().toast({ kind: 'warn', title: 'Watch parties need the desktop app' })
+      return
+    }
+    const item = usePlayer.getState().item
+    if (mode === 'stream' && !item) {
+      useUi.getState().toast({ kind: 'warn', title: 'Open the video you want to share first' })
       return
     }
     const { memberId, displayName } = ensureIdentity()
@@ -177,9 +201,29 @@ export const useTogether = create<TogetherStore>((set, get) => ({
         name: displayName,
         memberId,
         content: currentContent(),
-        port: hostPort
+        port: hostPort,
+        ...(mode === 'stream' && item
+          ? {
+              streamPath: item.path,
+              streamTitle: item.title,
+              streamDurationSec: usePlayer.getState().duration || item.durationSec || 0
+            }
+          : {})
       })
-      set({ meId: memberId, hosting: info, panelOpen: true })
+
+      // A container Chromium cannot decode plays fine for the host through mpv
+      // and shows nothing at all for everyone else. Say so now, not later.
+      if (info.stream && !info.stream.guestPlayable) {
+        useUi.getState().toast(
+          {
+            kind: 'warn',
+            title: `Your friends may not be able to play .${info.stream.ext}`,
+            desc: 'Guests decode in the browser engine. MP4, M4V, WebM and MOV are the safe choices.'
+          },
+          9000
+        )
+      }
+      set({ meId: memberId, hosting: info, panelOpen: true, relayUrl: null })
       void get().refreshMesh()
       startController()
 
@@ -239,7 +283,7 @@ export const useTogether = create<TogetherStore>((set, get) => ({
       content: currentContent()
     })
     void useSettings.getState().patch({ together: { lastRelayUrl: normalized } })
-    set({ meId: memberId, hosting: null, panelOpen: true })
+    set({ meId: memberId, hosting: null, panelOpen: true, relayUrl: normalized })
     startController()
   },
 
@@ -424,6 +468,23 @@ function currentContent(): ReturnType<typeof contentRefFor> | null {
 function targetPosition(room: RoomSnapshot, now: number): number {
   const { audioOffsetMs } = useSettings.getState().settings.together
   return positionAt(room.timeline, now) + audioOffsetMs / 1000
+}
+
+/**
+ * In a streaming room the host serves the film and everyone else plays it from
+ * them, so a guest does not need the file — or even a library. Opening it here
+ * means a guest's whole job is pasting the invite.
+ */
+function ensureStreamSource(room: RoomSnapshot): void {
+  const s = useTogether.getState()
+  // The host already has the real file open; only guests need the stream.
+  if (!room.stream || s.hosting || !s.relayUrl) return
+
+  const url = streamUrlFrom(s.relayUrl, room.stream.token)
+  const player = usePlayer.getState()
+  if (player.item?.path === url) return
+
+  player.openItem(makeStreamItem(url, room.stream.title), { queue: [] })
 }
 
 // ── The controller ──────────────────────────────────────────────────────────

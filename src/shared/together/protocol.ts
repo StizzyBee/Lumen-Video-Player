@@ -157,6 +157,33 @@ export interface Ballot {
   votes: Record<string, 'yes' | 'no'>
 }
 
+/**
+ * A room where one person's copy of the film is served to everyone else, so
+ * only the host needs the file. The token addresses the host's media endpoint;
+ * guests build the URL from their own relay address rather than being told
+ * one, because the host cannot know how it is reachable from the outside.
+ */
+export interface StreamOffer {
+  token: string
+  title: string
+  durationSec: number
+  /** Source extension, so guests can be warned before a codec fails silently. */
+  ext: string
+  /** False when the host's file is a container browsers cannot decode. */
+  guestPlayable: boolean
+}
+
+/**
+ * Turn the relay address a guest is already connected to into the media URL
+ * for a stream offer. Derived rather than advertised: the host sees itself as
+ * 127.0.0.1, and a friend across a VPN reaches it by a completely different
+ * address — only the guest knows which one worked.
+ */
+export function streamUrlFrom(relayUrl: string, token: string): string {
+  const http = relayUrl.replace(/^ws:/i, 'http:').replace(/^wss:/i, 'https:').replace(/\/+$/, '')
+  return `${http}/stream/${token}`
+}
+
 /** What the room looks like to every client. Sent whole; never patched. */
 export interface RoomSnapshot {
   roomId: string
@@ -168,6 +195,8 @@ export interface RoomSnapshot {
   ballots: Ballot[]
   /** Title + duration of what the room is watching, for the mismatch check. */
   content: ContentRef | null
+  /** Set when the host is serving the film to everyone else. */
+  stream: StreamOffer | null
 }
 
 /**
