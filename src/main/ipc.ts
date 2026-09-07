@@ -44,7 +44,9 @@ export function registerIpc(deps: IpcDeps): void {
   // excluded from the taskbar, and locked to the renderer's video region. It
   // remains a top-level swapchain because nested HWNDs render black on VMware.
   type SurfaceRect = { x: number; y: number; width: number; height: number; innerWidth: number }
-  const surface = new NativeSurfaceHost(deps.surfaceHostPath)
+  const surface = new NativeSurfaceHost(deps.surfaceHostPath, (event) => {
+    if (!win().isDestroyed()) win().webContents.send('mpv:event', { type: `surface-${event}` })
+  })
   let lastRect: SurfaceRect | null = null
   let cursorTimer: NodeJS.Timeout | null = null
   let lastCursor = { x: -1, y: -1 }
@@ -72,7 +74,7 @@ export function registerIpc(deps: IpcDeps): void {
     surface.destroy()
     lastRect = null
   }
-  const createSurface = async (videoWid: number): Promise<boolean> => {
+  const createSurface = async (videoWid: number): Promise<void> => {
     destroySurface()
     try {
       const parent = win()
@@ -90,10 +92,9 @@ export function registerIpc(deps: IpcDeps): void {
       })
       await surface.create(parentWid, videoWid, initialBounds)
       startCursorWatch()
-      return true
-    } catch {
+    } catch (error) {
       destroySurface()
-      return false
+      throw error
     }
   }
   const positionSurface = (rect: SurfaceRect): void => {
@@ -160,7 +161,7 @@ export function registerIpc(deps: IpcDeps): void {
         ...opts,
         ytdlpPath: isUrl ? ytdlp.detect().ytdlp ?? undefined : undefined
       })
-      if (!(await createSurface(videoWid))) throw new Error('mpv-surface-unavailable')
+      await createSurface(videoWid)
       // The render layer never activates, but explicitly restore Lumen focus
       // so keyboard shortcuts and its own controls remain authoritative.
       const w = win()

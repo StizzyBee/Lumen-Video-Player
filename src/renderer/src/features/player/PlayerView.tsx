@@ -95,12 +95,18 @@ export function PlayerView(): ReactNode {
     return () => window.removeEventListener('keydown', onKey)
   }, [poke])
 
-  // Embedded mpv: mouse over the native surface never reaches the DOM, so
-  // main watches the system cursor and pings us to revive the controls.
+  // Embedded mpv is a separate native swapchain above Chromium. Its helper
+  // relays pointer gestures while main watches cursor movement, keeping the
+  // player interaction identical to the built-in video engine.
   useEffect(() => {
     if (!embeddedMpv) return
     return platform.mpv.onEvent((e) => {
       if (e.type === 'cursor') poke()
+      else if (e.type === 'surface-click') usePlayer.getState().togglePlay()
+      else if (e.type === 'surface-double-click') {
+        const uiState = useUi.getState()
+        uiState.setFullscreen(!uiState.fullscreen)
+      }
     })
   }, [embeddedMpv, poke])
 
@@ -288,7 +294,11 @@ export function PlayerView(): ReactNode {
     },
     mpvEmbed: {
       title: 'Embedded playback could not start',
-      desc: 'Lumen blocked mpv from opening a separate interface. Install or locate plain mpv.exe in Settings → Video, then try again.'
+      desc: 'mpv started, but its video surface could not attach to Lumen. Restart Lumen and try again. If you run from source, update the checkout and rebuild it first.'
+    },
+    mpvSurfaceMissing: {
+      title: 'The embedded playback helper is missing',
+      desc: 'This source checkout was started without building Lumen.SurfaceHost. Update the source and run npm run dev again, or use the official Lumen installer.'
     }
   }
 

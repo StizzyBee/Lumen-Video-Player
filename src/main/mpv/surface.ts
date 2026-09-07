@@ -8,11 +8,16 @@ export interface SurfaceBounds {
   height: number
 }
 
+export type SurfaceInputEvent = 'click' | 'double-click'
+
 /** Keeps MPV's borderless render layer owned, positioned, and hidden with Lumen. */
 export class NativeSurfaceHost {
   private proc: ChildProcess | null = null
 
-  constructor(private readonly helperPath: string) {}
+  constructor(
+    private readonly helperPath: string,
+    private readonly onInput?: (event: SurfaceInputEvent) => void
+  ) {}
 
   isRunning(): boolean {
     return this.proc !== null
@@ -41,9 +46,9 @@ export class NativeSurfaceHost {
         if (settled) return
         settled = true
         clearTimeout(timer)
-        proc.stdout?.removeAllListeners('data')
         proc.removeListener('error', onError)
         if (error) {
+          proc.stdout?.removeAllListeners('data')
           if (this.proc === proc) this.destroy()
           reject(error)
         } else {
@@ -55,10 +60,21 @@ export class NativeSurfaceHost {
       proc.once('error', onError)
       proc.stdout?.on('data', (chunk) => {
         output += chunk.toString('utf8')
-        const line = output.split(/\r?\n/, 1)[0]?.trim()
-        if (!line || !/^\d+$/.test(line)) return
-        const wid = Number(line)
-        finish(wid === videoWid ? undefined : new Error('mpv-surface-unavailable'))
+        const lines = output.split(/\r?\n/)
+        output = lines.pop() ?? ''
+        for (const raw of lines) {
+          const line = raw.trim()
+          if (!line) continue
+          if (!settled) {
+            if (!/^\d+$/.test(line)) continue
+            const wid = Number(line)
+            finish(wid === videoWid ? undefined : new Error('mpv-surface-unavailable'))
+          } else if (line === 'input click') {
+            this.onInput?.('click')
+          } else if (line === 'input double-click') {
+            this.onInput?.('double-click')
+          }
+        }
       })
     })
   }

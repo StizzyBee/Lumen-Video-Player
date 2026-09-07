@@ -504,7 +504,11 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
             platform.app.setPlaying(false)
             set({
               status: 'error',
-              errorKind: message.includes('mpv-embed') || message.includes('mpv-surface') ? 'mpvEmbed' : 'mpv',
+              errorKind: message.includes('mpv-surface-host-missing')
+                ? 'mpvSurfaceMissing'
+                : message.includes('mpv-embed') || message.includes('mpv-surface')
+                  ? 'mpvEmbed'
+                  : 'mpv',
               mpvMode: 'off',
               mpvEmbedded: false
             })

@@ -1,7 +1,7 @@
 {
   "name": "lumen-player",
   "productName": "Lumen",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "A luminous home for your videos \u2014 a modern Windows video player.",
   "main": "out/main/index.js",
   "type": "module",
@@ -10,11 +10,11 @@
   "private": true,
   "scripts": {
     "build:surface": "node scripts/build-surface.mjs",
-    "dev": "electron-vite dev",
+    "dev": "npm run build:surface && electron-vite dev",
     "dev:web": "vite --config vite.web.config.ts",
     "relay": "vite-node --config vitest.config.ts server/relay.ts",
     "start": "electron-vite preview",
-    "build": "npm run typecheck && electron-vite build",
+    "build": "npm run typecheck && npm run build:surface && electron-vite build",
     "typecheck": "tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
     "test": "vitest run",
     "test:watch": "vitest",

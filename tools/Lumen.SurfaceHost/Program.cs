@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 internal static class Program
 {
@@ -10,6 +11,7 @@ internal static class Program
     private const long WS_CHILD = 0x40000000L;
     private const long WS_POPUP = 0x80000000L;
     private const long WS_VISIBLE = 0x10000000L;
+    private const long WS_DISABLED = 0x08000000L;
     private const long WS_OVERLAPPEDWINDOW = 0x00CF0000L;
     private const long WS_CLIPCHILDREN = 0x02000000L;
     private const long WS_CLIPSIBLINGS = 0x04000000L;
@@ -17,13 +19,29 @@ internal static class Program
     private const long WS_EX_APPWINDOW = 0x00040000L;
     private const long WS_EX_TOOLWINDOW = 0x00000080L;
     private const long WS_EX_NOACTIVATE = 0x08000000L;
+    private const long WS_EX_TRANSPARENT = 0x00000020L;
 
     private const uint SWP_NOACTIVATE = 0x0010;
     private const uint SWP_FRAMECHANGED = 0x0020;
     private const uint SWP_SHOWWINDOW = 0x0040;
     private const int SW_HIDE = 0;
     private const int SW_SHOWNOACTIVATE = 4;
+    private const int VK_LBUTTON = 0x01;
     private static readonly IntPtr HWND_TOP = IntPtr.Zero;
+    private static readonly object StateLock = new object();
+    private static readonly object OutputLock = new object();
+    private static int overlayX;
+    private static int overlayY;
+    private static int overlayWidth;
+    private static int overlayHeight;
+    private static volatile bool monitorPointer;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Point
+    {
+        public int X;
+        public int Y;
+    }
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -56,6 +74,13 @@ internal static class Program
     [DllImport("user32.dll")]
     private static extern bool SetProcessDpiAwarenessContext(IntPtr value);
 
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int virtualKey);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetCursorPos(out Point point);
+
     private static int Main(string[] args)
     {
         long ownerValue;
@@ -83,8 +108,12 @@ internal static class Program
 
         ConfigureOverlay(owner, video);
         PositionOverlay(video, x, y, width, height);
-        Console.Out.WriteLine(video.ToInt64());
-        Console.Out.Flush();
+        WriteOutput(video.ToInt64().ToString());
+
+        monitorPointer = true;
+        Thread pointerThread = new Thread(MonitorPointer);
+        pointerThread.IsBackground = true;
+        pointerThread.Start();
 
         try
         {
@@ -104,6 +133,8 @@ internal static class Program
         }
         finally
         {
+            monitorPointer = false;
+            pointerThread.Join(100);
             if (IsWindow(video)) ShowWindow(video, SW_HIDE);
         }
         return 0;
@@ -117,12 +148,18 @@ internal static class Program
 
         long style = GetWindowLongPtr(video, GWL_STYLE).ToInt64();
         style &= ~(WS_CHILD | WS_OVERLAPPEDWINDOW);
-        style |= WS_POPUP | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS;
+        // A disabled top-level window still renders without taking focus.
+        // Pointer gestures are observed below and relayed to Electron because
+        // cross-process overlay windows cannot reliably pass hit tests through.
+        style |= WS_POPUP | WS_VISIBLE | WS_DISABLED | WS_CLIPCHILDREN | WS_CLIPSIBLINGS;
         SetWindowLongPtr(video, GWL_STYLE, new IntPtr(style));
 
         long exStyle = GetWindowLongPtr(video, GWL_EXSTYLE).ToInt64();
         exStyle &= ~WS_EX_APPWINDOW;
-        exStyle |= WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
+        // The mpv HWND is only a picture layer. Keep it non-activating and
+        // transparent in addition to disabling it so it cannot steal keyboard
+        // focus from Lumen while showing video above Chromium.
+        exStyle |= WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT;
         SetWindowLongPtr(video, GWL_EXSTYLE, new IntPtr(exStyle));
 
         // For a top-level window, GWLP_HWNDPARENT assigns an owner rather than
@@ -133,6 +170,13 @@ internal static class Program
 
     private static void PositionOverlay(IntPtr video, int x, int y, int width, int height)
     {
+        lock (StateLock)
+        {
+            overlayX = x;
+            overlayY = y;
+            overlayWidth = Math.Max(1, width);
+            overlayHeight = Math.Max(1, height);
+        }
         SetWindowPos(
             video,
             HWND_TOP,
@@ -142,5 +186,83 @@ internal static class Program
             Math.Max(1, height),
             SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
         ShowWindow(video, SW_SHOWNOACTIVATE);
+    }
+
+    private static void MonitorPointer()
+    {
+        bool wasDown = false;
+        bool pressStartedInside = false;
+        Point pressPoint = new Point();
+        Point pendingPoint = new Point();
+        long pendingClickAt = 0;
+
+        while (monitorPointer)
+        {
+            Point cursor;
+            bool haveCursor = GetCursorPos(out cursor);
+            bool down = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+
+            if (down && !wasDown)
+            {
+                pressStartedInside = haveCursor && IsInside(cursor);
+                pressPoint = cursor;
+            }
+            else if (!down && wasDown)
+            {
+                if (pressStartedInside && haveCursor && IsInside(cursor) && DistanceSquared(pressPoint, cursor) <= 64)
+                {
+                    long now = DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;
+                    if (pendingClickAt != 0 && now - pendingClickAt <= 300 && DistanceSquared(pendingPoint, cursor) <= 64)
+                    {
+                        pendingClickAt = 0;
+                        WriteOutput("input double-click");
+                    }
+                    else
+                    {
+                        pendingClickAt = now;
+                        pendingPoint = cursor;
+                    }
+                }
+                pressStartedInside = false;
+            }
+
+            if (pendingClickAt != 0)
+            {
+                long now = DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;
+                if (now - pendingClickAt > 300)
+                {
+                    pendingClickAt = 0;
+                    WriteOutput("input click");
+                }
+            }
+
+            wasDown = down;
+            Thread.Sleep(15);
+        }
+    }
+
+    private static bool IsInside(Point point)
+    {
+        lock (StateLock)
+        {
+            return point.X >= overlayX && point.X < overlayX + overlayWidth &&
+                   point.Y >= overlayY && point.Y < overlayY + overlayHeight;
+        }
+    }
+
+    private static int DistanceSquared(Point a, Point b)
+    {
+        int dx = a.X - b.X;
+        int dy = a.Y - b.Y;
+        return dx * dx + dy * dy;
+    }
+
+    private static void WriteOutput(string line)
+    {
+        lock (OutputLock)
+        {
+            Console.Out.WriteLine(line);
+            Console.Out.Flush();
+        }
     }
 }
