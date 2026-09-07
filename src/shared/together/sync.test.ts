@@ -176,7 +176,7 @@ describe('drift correction', () => {
   it('does not oscillate once it has converged', () => {
     // Sitting exactly on the deadband edge must not flip between nudge and
     // hold forever; the release threshold is what stops the tempo wobbling.
-    let state: DriftState = { correcting: true, overshoots: 0, lastSeekAt: 0 }
+    let state: DriftState = { correcting: true, overshoots: 0, lastSeekAt: 0, lastSeekTarget: null }
     const first = decideCorrection(rolling(100.02, 100), state)
     state = first.state
     expect(first.correction.action).toBe('nudge')
@@ -207,11 +207,11 @@ describe('drift correction', () => {
   })
 
   it('will not seek twice in quick succession', () => {
-    let state: DriftState = { correcting: false, overshoots: 5, lastSeekAt: 100_000 }
+    let state: DriftState = { correcting: false, overshoots: 5, lastSeekAt: 100_000, lastSeekTarget: null }
     const soon = decideCorrection(rolling(105, 100, 100_000 + SEEK_COOLDOWN_MS - 1), state)
     expect(soon.correction.action).toBe('nudge')
 
-    state = { correcting: false, overshoots: 5, lastSeekAt: 100_000 }
+    state = { correcting: false, overshoots: 5, lastSeekAt: 100_000, lastSeekTarget: null }
     const later = decideCorrection(rolling(105, 100, 100_000 + SEEK_COOLDOWN_MS + 1), state)
     expect(later.correction.action).toBe('seek')
   })
@@ -224,6 +224,74 @@ describe('drift correction', () => {
     // No audio is playing, so there is no glitch to avoid — snap to the frame.
     expect(correction.action).toBe('seek')
     expect(correction.seekTo).toBe(100)
+  })
+
+  it('does not re-seek a paused room it has already snapped', () => {
+    // The resync loop: engines land on frame boundaries, and one frame of
+    // 24fps content (42ms) is wider than the deadband, so the gap never
+    // closes. Asking again every tick seeks forever and flushes the buffer
+    // each time, dropping this client out of the room's ready-gate.
+    const target = 100
+    let state = initialDriftState()
+    let local = 100.4
+    let seeks = 0
+
+    for (let i = 0; i < 400; i++) {
+      const { correction, state: next } = decideCorrection(
+        { localTime: local, targetTime: target, rolling: false, now: 100_000 + i * 250 },
+        state
+      )
+      state = next
+      if (correction.action === 'seek') {
+        seeks++
+        // The engine snaps to the nearest frame it holds, one frame short.
+        local = (correction.seekTo ?? target) - 1 / 24
+      }
+    }
+
+    expect(seeks).toBe(1)
+  })
+
+  it('realigns again when a paused room moves to a new position', () => {
+    let state = initialDriftState()
+    const first = decideCorrection(
+      { localTime: 100.4, targetTime: 100, rolling: false, now: 100_000 },
+      state
+    )
+    state = first.state
+    expect(first.correction.action).toBe('seek')
+
+    // Somebody scrubbed. The target moved, so this is a fresh alignment and
+    // must not be swallowed by the repeat guard.
+    const moved = decideCorrection(
+      { localTime: 99.96, targetTime: 400, rolling: false, now: 100_250 },
+      state
+    )
+    expect(moved.correction.action).toBe('seek')
+    expect(moved.correction.seekTo).toBe(400)
+  })
+
+  it('retries a paused seek the engine plainly ignored, but not fast', () => {
+    let state = initialDriftState()
+    const first = decideCorrection(
+      { localTime: 400, targetTime: 100, rolling: false, now: 100_000 },
+      state
+    )
+    state = first.state
+    expect(first.correction.action).toBe('seek')
+
+    // Still 300s out: the seek never took. Hold until the cooldown expires.
+    const soon = decideCorrection(
+      { localTime: 400, targetTime: 100, rolling: false, now: 100_000 + SEEK_COOLDOWN_MS - 1 },
+      state
+    )
+    expect(soon.correction.action).toBe('hold')
+
+    const later = decideCorrection(
+      { localTime: 400, targetTime: 100, rolling: false, now: 100_000 + SEEK_COOLDOWN_MS + 1 },
+      state
+    )
+    expect(later.correction.action).toBe('seek')
   })
 })
 

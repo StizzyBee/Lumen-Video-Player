@@ -51,10 +51,12 @@ export interface DriftState {
   overshoots: number
   /** Local clock of the last seek we issued. */
   lastSeekAt: number
+  /** Media position of the last seek we issued, or null if we have not seeked. */
+  lastSeekTarget: number | null
 }
 
 export function initialDriftState(): DriftState {
-  return { correcting: false, overshoots: 0, lastSeekAt: 0 }
+  return { correcting: false, overshoots: 0, lastSeekAt: 0, lastSeekTarget: null }
 }
 
 export interface DriftInput {
@@ -85,12 +87,34 @@ export function decideCorrection(input: DriftInput, state: DriftState): {
   // frame. Rate is meaningless here, so parity is a position write — and a
   // seek while paused costs nothing, because there is no audio to interrupt.
   if (!input.rolling) {
-    if (magnitude <= DEADBAND_SEC) {
-      return {
-        correction: { action: 'hold', rateMultiplier: 1, seekTo: null, reason: 'paused-aligned' },
-        state: { ...state, correcting: false, overshoots: 0 }
-      }
+    const hold = (reason: string): { correction: Correction; state: DriftState } => ({
+      correction: { action: 'hold', rateMultiplier: 1, seekTo: null, reason },
+      state: { ...state, correcting: false, overshoots: 0 }
+    })
+
+    if (magnitude <= DEADBAND_SEC) return hold('paused-aligned')
+
+    // A paused target does not move, so a realign is a one-shot: ask once and
+    // accept where the engine landed. Asking again every tick is the bug that
+    // makes a room resync forever, because a seek can *never* close the last
+    // few milliseconds — engines land on frame boundaries, and one frame of
+    // 24fps content is 42ms, wider than the deadband. The retries are not
+    // free either: each one flushes the buffer, which drops this client out of
+    // the room's ready-gate and has everyone else stop and start around it.
+    const sameTarget =
+      state.lastSeekTarget !== null &&
+      Math.abs(state.lastSeekTarget - input.targetTime) <= DEADBAND_SEC
+
+    if (sameTarget) {
+      // Small residue: this is frame quantisation, and it is as close as the
+      // engine can get. Sitting one frame apart while paused is invisible.
+      if (magnitude <= SEEK_SEC) return hold('paused-quantized')
+      // A gap this big means the seek never took — the engine was loading, or
+      // the position was not seekable yet. Retry, but no faster than a rolling
+      // seek would, so a file that refuses to seek cannot thrash.
+      if (input.now - state.lastSeekAt < SEEK_COOLDOWN_MS) return hold('paused-cooldown')
     }
+
     return {
       correction: {
         action: 'seek',
@@ -98,7 +122,13 @@ export function decideCorrection(input: DriftInput, state: DriftState): {
         seekTo: input.targetTime,
         reason: 'paused-realign'
       },
-      state: { ...state, correcting: false, overshoots: 0, lastSeekAt: input.now }
+      state: {
+        ...state,
+        correcting: false,
+        overshoots: 0,
+        lastSeekAt: input.now,
+        lastSeekTarget: input.targetTime
+      }
     }
   }
 
@@ -118,7 +148,12 @@ export function decideCorrection(input: DriftInput, state: DriftState): {
           seekTo: input.targetTime + 0.05,
           reason: 'far-out-of-sync'
         },
-        state: { correcting: false, overshoots: 0, lastSeekAt: input.now }
+        state: {
+          correcting: false,
+          overshoots: 0,
+          lastSeekAt: input.now,
+          lastSeekTarget: input.targetTime + 0.05
+        }
       }
     }
     // Not yet confirmed (or still cooling down) — pull hard with rate meanwhile.

@@ -116,6 +116,8 @@ interface TogetherStore {
 let ticker: number | null = null
 let reporter: number | null = null
 let driftState: DriftState = initialDriftState()
+/** The last rate we actually wrote to the engine, so we only write on change. */
+let lastAppliedRate = 0
 let lastAppliedEpoch = -1
 let lastReportedContentKey = ''
 /** Room content we have already tried to open, so a miss is reported once. */
@@ -714,7 +716,12 @@ function applyTimeline(room: RoomSnapshot): void {
     lastAppliedEpoch = tl.epoch
     driftState = initialDriftState()
     const target = targetPosition(room, now)
-    if (Math.abs(rawPosition() - target) > 0.25) rawSeek(target)
+    if (Math.abs(rawPosition() - target) > 0.25) {
+      rawSeek(target)
+      // Tell the controller we have already snapped here, so a paused room
+      // does not immediately seek a second time to the same frame.
+      driftState = { ...driftState, lastSeekAt: Date.now(), lastSeekTarget: target }
+    }
   }
 
   if (rolling) {
@@ -763,8 +770,15 @@ function tick(): void {
   if (correction.action === 'seek' && correction.seekTo !== null) {
     rawSeek(correction.seekTo)
   } else {
-    // The room's rate is the baseline; the nudge rides on top of it.
-    rawSetEffectiveRate(room.timeline.rate * correction.rateMultiplier)
+    // The room's rate is the baseline; the nudge rides on top of it. Only
+    // write it when it actually moves: mpv takes every set_property as a real
+    // change and re-primes its audio filters, so re-asserting 1.0x four times
+    // a second is an audible tick rather than a no-op.
+    const next = room.timeline.rate * correction.rateMultiplier
+    if (Math.abs(next - lastAppliedRate) > 1e-4) {
+      lastAppliedRate = next
+      rawSetEffectiveRate(next)
+    }
   }
 
   useTogether.setState({
@@ -819,6 +833,7 @@ function report(): void {
 function startController(): void {
   stopController()
   driftState = initialDriftState()
+  lastAppliedRate = 0
   lastAppliedEpoch = -1
   lastReportedContentKey = ''
   lastMatchAttempt = ''
@@ -860,6 +875,7 @@ function stopController(): void {
   // Hand the user's chosen speed back — leaving a 1.03x nudge applied would
   // desync them from nothing at all, forever.
   const { rate } = usePlayer.getState()
+  lastAppliedRate = 0
   rawSetEffectiveRate(rate)
 }
 
