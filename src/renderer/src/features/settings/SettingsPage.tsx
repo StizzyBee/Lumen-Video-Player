@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   Palette, Play, AudioLines, Captions, Keyboard, FolderCog, ShieldCheck,
-  FolderPlus, Trash2, RefreshCw, RotateCcw, MonitorCog
+  FolderPlus, Trash2, RefreshCw, RotateCcw, MonitorCog, Users
 } from 'lucide-react'
 import { availableResolutions, DEFAULT_COLOR } from '@/core/video'
 import type { ColorAdjust } from '@shared/types'
@@ -19,6 +19,7 @@ import { Menu, anchorFromElement, type MenuAnchor } from '@/components/ui/Menu'
 import { allCommands } from '@/core/commands'
 import { DEFAULT_KEYMAP, bindingFromEvent, findConflicts, formatBinding } from '@/core/shortcuts'
 import { formatRate } from '@/core/utils/format'
+import { TogetherGuide } from '@/features/together/TogetherGuide'
 import styles from './SettingsPage.module.css'
 
 const ACCENTS = ['#6c8cff', '#8b7cf6', '#e85d75', '#f06292', '#e8823d', '#e5b93c', '#3fb970', '#38b6c9']
@@ -30,6 +31,7 @@ const SECTIONS = [
   { id: 'video', label: 'Video', icon: <MonitorCog size={16} /> },
   { id: 'audio', label: 'Audio', icon: <AudioLines size={16} /> },
   { id: 'subtitles', label: 'Subtitles', icon: <Captions size={16} /> },
+  { id: 'together', label: 'Watch together', icon: <Users size={16} /> },
   { id: 'shortcuts', label: 'Shortcuts', icon: <Keyboard size={16} /> },
   { id: 'library', label: 'Library', icon: <FolderCog size={16} /> },
   { id: 'privacy', label: 'Privacy & About', icon: <ShieldCheck size={16} /> }
@@ -588,6 +590,66 @@ export function SettingsPage(): ReactNode {
             <Slider ariaLabel="Subtitle position" value={sub.bottomPct} min={2} max={30} step={1} onChange={(v) => patch({ subtitles: { style: { ...sub, bottomPct: v } } })} />
             <span className={styles.sliderValue}>{sub.bottomPct}%</span>
           </Row>
+        </Section>
+
+        <Section id="together" label="Watch together" icon={<Users size={16} />}>
+          <Row
+            query={q}
+            label="Your name"
+            desc="How you appear to the other watchers"
+            wide
+          >
+            <input
+              className={styles.textInput}
+              value={s.together.displayName}
+              placeholder="Watcher"
+              maxLength={24}
+              aria-label="Your watch party name"
+              onChange={(e) => patch({ together: { displayName: e.target.value.slice(0, 24) } })}
+            />
+          </Row>
+          <Row
+            query={q}
+            label="Your audio delay"
+            desc="Only affects you. Raise it if the picture is in sync but your sound lands late — Bluetooth headphones commonly add 150–300 ms."
+            wide
+          >
+            <Slider
+              ariaLabel="Audio delay compensation"
+              value={s.together.audioOffsetMs}
+              min={-500}
+              max={500}
+              step={10}
+              onChange={(v) => patch({ together: { audioOffsetMs: v } })}
+            />
+            <span className={styles.sliderValue}>
+              {s.together.audioOffsetMs > 0 ? '+' : ''}
+              {s.together.audioOffsetMs} ms
+            </span>
+          </Row>
+          <Row
+            query={q}
+            label="Room port"
+            desc="The port Lumen listens on when you host. Change it only if something else already uses this one."
+          >
+            <input
+              className={styles.textInput}
+              type="number"
+              min={1024}
+              max={65535}
+              value={s.together.hostPort}
+              aria-label="Watch party port"
+              onChange={(e) => {
+                const port = Number(e.target.value)
+                if (port >= 1024 && port <= 65535) patch({ together: { hostPort: port } })
+              }}
+            />
+          </Row>
+          {!q && (
+            <div className={styles.rowBlock}>
+              <TogetherGuide />
+            </div>
+          )}
         </Section>
 
         <Section id="shortcuts" label="Shortcuts" icon={<Keyboard size={16} />}>

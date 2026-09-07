@@ -138,6 +138,18 @@ connections and you would rather not run a VPN, `server/` holds a standalone
 relay (`npm run relay`) for a small always-on box. It reuses the same room
 logic, so the rules cannot diverge.
 
+## The in-app guide
+
+`TogetherGuide.tsx` is the user-facing explainer, mounted in two places from
+one component: **Settings -> Watch together** (alongside the display name,
+audio delay and room port), and a dialog opened from the watch-party panel's
+help button, so nobody has to leave the player to find it.
+
+It shows the hosting and joining paths side by side, because a person always
+knows which of the two they are. Its wording tracks the actual button labels
+("Start a room", "Copy invite", "Vote to resume", "Reachable anywhere") —
+if you rename a control, update the guide with it.
+
 ## Where the code lives
 
 | Path | Role |
@@ -151,7 +163,8 @@ logic, so the rules cannot diverge.
 | `src/main/together/relay.ts` | WebSocket server around the room |
 | `src/main/together/client.ts` | Socket client and clock discipline |
 | `src/renderer/src/core/store/together.ts` | Store plus the drift control loop |
-| `src/renderer/src/features/together/` | Panel UI |
+| `src/renderer/src/features/together/TogetherPanel.tsx` | Panel UI |
+| `src/renderer/src/features/together/TogetherGuide.tsx` | The user-facing how-to |
 
 The room rules and the sync maths are pure functions of `(state, event, now)`,
 which is what lets `src/shared/together/*.test.ts` prove convergence and voting

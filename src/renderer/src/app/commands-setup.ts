@@ -41,6 +41,13 @@ export function setupCommands(): void {
       run: () => useTogether.getState().setPanelOpen(!useTogether.getState().panelOpen)
     },
     {
+      id: 'together.help',
+      title: 'Watch together: how it works',
+      category: 'Together',
+      keywords: ['help', 'guide', 'how', 'sync', 'watch', 'party', 'share', 'tutorial'],
+      run: () => ui().navigate({ name: 'settings', section: 'together' })
+    },
+    {
       id: 'together.host',
       title: 'Watch together: host a room',
       category: 'Together',

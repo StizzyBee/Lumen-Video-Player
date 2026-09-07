@@ -402,3 +402,22 @@
   font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
   overflow-wrap: anywhere;
 }
+
+/* A quiet way out to the full explainer, sitting where a first-timer runs out
+   of confidence — under the start options rather than competing with them. */
+.guideLink {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  border-radius: var(--r-md);
+  color: rgba(255, 255, 255, 0.55);
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.guideLink:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}

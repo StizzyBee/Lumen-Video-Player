@@ -8,7 +8,7 @@ import { motion } from 'motion/react'
 import {
   X, Users, Copy, Check, Radio, Gavel, ThumbsUp, ThumbsDown, ShieldOff,
   Crown, WifiOff, FileWarning, Headphones, Pause, Hourglass, Globe, House,
-  Download, ExternalLink
+  Download, ExternalLink, CircleQuestionMark
 } from 'lucide-react'
 import { useTogether } from '@/core/store/together'
 import { useSettings } from '@/core/store/settings'
@@ -16,6 +16,8 @@ import { useUi } from '@/core/store/ui'
 import { IconButton } from '@/components/ui/IconButton'
 import { Button } from '@/components/ui/Button'
 import { Slider } from '@/components/ui/Slider'
+import { Dialog } from '@/components/ui/Dialog'
+import { TogetherGuide } from './TogetherGuide'
 import { REVOKE_DURATIONS, isRestricted, type Ballot, type Member } from '@shared/together/protocol'
 import { ZEROTIER_NETWORK_RE, formatInvite, parseInvite, type MeshProvider } from '@shared/together/mesh'
 import { tally } from '@shared/together/room'
@@ -210,7 +212,7 @@ function MeshSetup({ compact = false }: { compact?: boolean }): ReactNode {
 
 // ── Not in a room yet ───────────────────────────────────────────────────────
 
-function StartPanel(): ReactNode {
+function StartPanel({ onShowGuide }: { onShowGuide: () => void }): ReactNode {
   const together = useTogether()
   const settings = useSettings((s) => s.settings.together)
   const [invite, setInvite] = useState(settings.lastRelayUrl)
@@ -287,6 +289,11 @@ function StartPanel(): ReactNode {
       </div>
 
       <MeshSetup />
+
+      <button className={styles.guideLink} onClick={onShowGuide}>
+        <CircleQuestionMark size={14} />
+        How does this work?
+      </button>
     </div>
   )
 }
@@ -506,6 +513,7 @@ function MemberRow({ member, serverNow }: { member: Member; serverNow: number })
 export function TogetherPanel(): ReactNode {
   const together = useTogether()
   const room = together.room
+  const [guideOpen, setGuideOpen] = useState(false)
   const audioOffsetMs = useSettings((s) => s.settings.together.audioOffsetMs)
   const localNow = useNow()
   const serverNow = localNow + together.clockOffsetMs
@@ -538,14 +546,21 @@ export function TogetherPanel(): ReactNode {
         <span className={styles.headTitle}>
           {room ? `Watching together · ${room.members.length}` : 'Watch together'}
         </span>
+        <IconButton size="sm" label="How watch parties work" onClick={() => setGuideOpen(true)}>
+          <CircleQuestionMark size={15} />
+        </IconButton>
         <IconButton size="sm" label="Close" onClick={() => together.setPanelOpen(false)}>
           <X size={15} />
         </IconButton>
       </div>
 
+      <Dialog open={guideOpen} title="How watch parties work" onClose={() => setGuideOpen(false)} wide>
+        <TogetherGuide />
+      </Dialog>
+
       <div className={styles.body}>
         {!room ? (
-          <StartPanel />
+          <StartPanel onShowGuide={() => setGuideOpen(true)} />
         ) : (
           <>
             <SyncBadge />
