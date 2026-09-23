@@ -83,7 +83,12 @@ const api: LumenApi = {
     getSession: () => ipcRenderer.invoke('moviebox:get-session'),
     updateState: (state) => ipcRenderer.send('moviebox:update-state', state),
     action: (action, id, value) => ipcRenderer.send('moviebox:action', action, id, value),
-    onEvent: (cb) => on('moviebox:event', cb)
+    onEvent: (cb) => on('moviebox:event', cb),
+    integrationStatus: () => ipcRenderer.invoke('moviebox:integration-status'),
+    activateIntegration: () => ipcRenderer.invoke('moviebox:integration-activate'),
+    deactivateIntegration: () => ipcRenderer.invoke('moviebox:integration-deactivate'),
+    chooseApp: () => ipcRenderer.invoke('moviebox:integration-choose'),
+    launch: () => ipcRenderer.invoke('moviebox:integration-launch')
   },
   together: {
     host: (opts) => ipcRenderer.invoke('together:host', opts),

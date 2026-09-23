@@ -1,7 +1,7 @@
 {
   "name": "lumen-player",
   "productName": "Lumen",
-  "version": "0.6.4",
+  "version": "0.6.5",
   "description": "A luminous home for your videos \u2014 a modern Windows video player.",
   "main": "out/main/index.js",
   "type": "module",
@@ -113,5 +113,8 @@
         "repo": "Lumen-Video-Player"
       }
     ]
+  },
+  "overrides": {
+    "js-yaml": "4.3.2"
   }
 }

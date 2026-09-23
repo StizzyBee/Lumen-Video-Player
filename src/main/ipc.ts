@@ -25,6 +25,7 @@ import { checkForUpdate, downloadUpdate, installUpdate, registerUpdater } from '
 import { wingetInstall } from './winget'
 import type { InstallationIdentityStore } from './identity'
 import type { MovieBoxBridgeClient } from './moviebox/bridge'
+import type { MovieBoxIntegration } from './moviebox/integration'
 import type { MovieBoxPlaybackState } from '@shared/moviebox'
 
 export interface IpcDeps {
@@ -38,6 +39,7 @@ export interface IpcDeps {
   surfaceHostPath: string
   identity: InstallationIdentityStore
   movieBox: MovieBoxBridgeClient
+  movieBoxIntegration: MovieBoxIntegration
 }
 
 export function registerIpc(deps: IpcDeps): void {
@@ -248,6 +250,11 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.on('moviebox:action', (_e, action: string, id?: string, value?: number) => {
     deps.movieBox.queueAction(action, id, value)
   })
+  ipcMain.handle('moviebox:integration-status', () => deps.movieBoxIntegration.status())
+  ipcMain.handle('moviebox:integration-activate', () => deps.movieBoxIntegration.activate())
+  ipcMain.handle('moviebox:integration-deactivate', () => deps.movieBoxIntegration.deactivate())
+  ipcMain.handle('moviebox:integration-choose', () => deps.movieBoxIntegration.chooseMovieBox())
+  ipcMain.handle('moviebox:integration-launch', () => deps.movieBoxIntegration.launch())
 
   // ── yt-dlp downloads (pull a video from a website into the library) ───────
   const ytdlp = new YtdlpManager(() => ({

@@ -5,6 +5,7 @@ import type { UpdateEvent } from './updates'
 import type {
   MovieBoxBridgeEvent,
   MovieBoxBridgeSession,
+  MovieBoxIntegrationStatus,
   MovieBoxPlaybackState
 } from './moviebox'
 import type {
@@ -139,6 +140,11 @@ export interface LumenApi {
     updateState(state: MovieBoxPlaybackState): void
     action(action: string, id?: string, value?: number): void
     onEvent(cb: (event: MovieBoxBridgeEvent) => void): Unsubscribe
+    integrationStatus(): Promise<MovieBoxIntegrationStatus>
+    activateIntegration(): Promise<MovieBoxIntegrationStatus>
+    deactivateIntegration(): Promise<MovieBoxIntegrationStatus>
+    chooseApp(): Promise<MovieBoxIntegrationStatus>
+    launch(): Promise<void>
   }
   /**
    * Together: synchronized watch parties. The relay socket lives in main so

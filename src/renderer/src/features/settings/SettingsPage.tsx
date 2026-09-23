@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   Palette, Play, AudioLines, Captions, Keyboard, FolderCog, ShieldCheck,
-  FolderPlus, Trash2, RefreshCw, RotateCcw, MonitorCog, Users, Copy, Check
+  FolderPlus, Trash2, RefreshCw, RotateCcw, MonitorCog, Users, Copy, Check, Cable, Rocket
 } from 'lucide-react'
 import { availableResolutions, DEFAULT_COLOR } from '@/core/video'
 import type { ColorAdjust } from '@shared/types'
+import type { MovieBoxIntegrationStatus } from '@shared/moviebox'
 import { useSettings } from '@/core/store/settings'
 import { useLibrary } from '@/core/store/library'
 import { useUi } from '@/core/store/ui'
@@ -32,6 +33,7 @@ const SECTIONS = [
   { id: 'video', label: 'Video', icon: <MonitorCog size={16} /> },
   { id: 'audio', label: 'Audio', icon: <AudioLines size={16} /> },
   { id: 'subtitles', label: 'Subtitles', icon: <Captions size={16} /> },
+  { id: 'integrations', label: 'Integrations', icon: <Cable size={16} /> },
   { id: 'together', label: 'Watch together', icon: <Users size={16} /> },
   { id: 'shortcuts', label: 'Shortcuts', icon: <Keyboard size={16} /> },
   { id: 'library', label: 'Library', icon: <FolderCog size={16} /> },
@@ -367,9 +369,12 @@ export function SettingsPage(): ReactNode {
   const [version, setVersion] = useState('')
   const [hdrDisplay, setHdrDisplay] = useState(false)
   const [idCopied, setIdCopied] = useState(false)
+  const [movieBox, setMovieBox] = useState<MovieBoxIntegrationStatus | null>(null)
+  const [movieBoxBusy, setMovieBoxBusy] = useState(false)
 
   useEffect(() => {
     void platform.app.version().then(setVersion)
+    void platform.movieBox.integrationStatus().then(setMovieBox)
     setHdrDisplay(window.matchMedia?.('(dynamic-range: high)')?.matches ?? false)
   }, [])
 
@@ -384,6 +389,50 @@ export function SettingsPage(): ReactNode {
 
   const jump = (id: string): void =>
     document.getElementById(`settings-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+
+  const toggleMovieBox = async (active: boolean): Promise<void> => {
+    if (movieBoxBusy) return
+    setMovieBoxBusy(true)
+    try {
+      if (active && !usePlayer.getState().mpvAvailable) {
+        await usePlayer.getState().installMpv()
+        if (!usePlayer.getState().mpvAvailable) throw new Error('moviebox-mpv-required')
+      }
+      const next = active
+        ? await platform.movieBox.activateIntegration()
+        : await platform.movieBox.deactivateIntegration()
+      setMovieBox(next)
+      useUi.getState().toast({
+        kind: 'ok',
+        title: active ? 'MovieBox bridge activated' : 'MovieBox bridge deactivated',
+        desc: active
+          ? 'Use “MovieBox with Lumen” on your desktop or Start menu.'
+          : 'The Lumen-created shortcuts were removed.'
+      }, 4500)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      useUi.getState().toast({
+        kind: 'warn',
+        title: "Couldn't configure MovieBox",
+        desc: message.includes('mpv-required')
+          ? 'Install mpv in Video settings, then try again.'
+          : message.includes('not-selected')
+            ? 'Select MovieBoxPro.exe when prompted.'
+            : message.includes('integrity')
+              ? 'The bridge download did not pass its integrity check.'
+              : 'Check your internet connection and try again.'
+      }, 5500)
+      setMovieBox(await platform.movieBox.integrationStatus())
+    } finally {
+      setMovieBoxBusy(false)
+    }
+  }
+
+  const chooseMovieBox = async (): Promise<void> => {
+    setMovieBoxBusy(true)
+    try { setMovieBox(await platform.movieBox.chooseApp()) }
+    finally { setMovieBoxBusy(false) }
+  }
 
   return (
     <div className={styles.page}>
@@ -593,6 +642,42 @@ export function SettingsPage(): ReactNode {
             <Slider ariaLabel="Subtitle position" value={sub.bottomPct} min={2} max={30} step={1} onChange={(v) => patch({ subtitles: { style: { ...sub, bottomPct: v } } })} />
             <span className={styles.sliderValue}>{sub.bottomPct}%</span>
           </Row>
+        </Section>
+
+        <Section id="integrations" label="Integrations" icon={<Cable size={16} />}>
+          <Row
+            query={q}
+            label="MovieBox playback bridge"
+            desc="Downloads the verified bridge, installs it inside Lumen's app data, and creates Desktop and Start menu launchers. MovieBox still handles sign-in and title access."
+          >
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <span className={styles.sliderValue} style={{ minWidth: 0, color: movieBox?.active ? 'var(--ok)' : 'var(--text-3)' }}>
+                {movieBoxBusy ? 'Setting up…' : movieBox?.active ? 'Ready' : 'Off'}
+              </span>
+              <Switch
+                ariaLabel="MovieBox playback bridge"
+                checked={!!movieBox?.active}
+                disabled={movieBoxBusy || !movieBox?.canActivate}
+                onChange={(value) => void toggleMovieBox(value)}
+              />
+            </div>
+          </Row>
+          <Row
+            query={q}
+            label="MovieBox app"
+            desc={movieBox?.movieBoxPath ?? 'Lumen will look in standard install locations and ask once if MovieBoxPro.exe is elsewhere.'}
+          >
+            <Button size="sm" variant="ghost" disabled={movieBoxBusy || !movieBox?.canActivate} onClick={() => void chooseMovieBox()}>
+              {movieBox?.movieBoxPath ? 'Change…' : 'Locate…'}
+            </Button>
+          </Row>
+          {movieBox?.active && (
+            <Row query={q} label="Open MovieBox" desc="Launches MovieBox with the bridge enabled only for that process. Normal apps and other .NET programs are untouched.">
+              <Button size="sm" variant="accentSoft" icon={<Rocket size={14} />} onClick={() => void platform.movieBox.launch()}>
+                Launch MovieBox
+              </Button>
+            </Row>
+          )}
         </Section>
 
         <Section id="together" label="Watch together" icon={<Users size={16} />}>

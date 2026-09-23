@@ -71,6 +71,15 @@ export interface MovieBoxBridgeSession {
   error: string | null
 }
 
+export interface MovieBoxIntegrationStatus {
+  active: boolean
+  filesReady: boolean
+  shortcutsReady: boolean
+  movieBoxPath: string | null
+  bridgeVersion: string
+  canActivate: boolean
+}
+
 export const EMPTY_MOVIEBOX_STATE: MovieBoxPlaybackState = {
   revision: 0,
   position: 0,

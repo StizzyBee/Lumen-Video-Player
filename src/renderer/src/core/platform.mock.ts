@@ -237,7 +237,26 @@ export function createMockLumen(): LumenApi {
       getSession: async () => ({ connected: false, reply: null, error: null }),
       updateState: () => {},
       action: () => {},
-      onEvent: () => () => {}
+      onEvent: () => () => {},
+      integrationStatus: async () => ({
+        active: false,
+        filesReady: false,
+        shortcutsReady: false,
+        movieBoxPath: null,
+        bridgeVersion: '0.6.4',
+        canActivate: false
+      }),
+      activateIntegration: async () => { throw new Error('desktop-only') },
+      deactivateIntegration: async () => ({
+        active: false,
+        filesReady: false,
+        shortcutsReady: false,
+        movieBoxPath: null,
+        bridgeVersion: '0.6.4',
+        canActivate: false
+      }),
+      chooseApp: async () => { throw new Error('desktop-only') },
+      launch: async () => {}
     },
     together: {
       // Watch parties need a real socket, which a browser tab cannot open to
