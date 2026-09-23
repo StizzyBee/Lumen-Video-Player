@@ -84,6 +84,8 @@ export class MpvManager {
       startAt?: number
       /** yt-dlp path so mpv's ytdl hook can resolve website URLs to streams */
       ytdlpPath?: string
+      /** Session user agent supplied by an authorized external playback hand-off. */
+      userAgent?: string
     }
   ): Promise<number> {
     const mpv = this.detect()
@@ -104,6 +106,7 @@ export class MpvManager {
       `--volume=${Math.round(opts.volume * 100)}`,
       ...(opts.startAt && opts.startAt > 1 ? [`--start=${Math.floor(opts.startAt)}`] : []),
       ...(opts.ytdlpPath ? [`--script-opts=ytdl_hook-ytdl_path=${opts.ytdlpPath}`] : []),
+      ...(opts.userAgent ? [`--user-agent=${opts.userAgent}`] : []),
       ...windowArgs,
       '--',
       filePath

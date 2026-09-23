@@ -3,6 +3,11 @@ import type { InviteEvent, WatchInviteMode } from './together/invites'
 import type { MeshProvider, MeshStatus, NetAddress } from './together/mesh'
 import type { UpdateEvent } from './updates'
 import type {
+  MovieBoxBridgeEvent,
+  MovieBoxBridgeSession,
+  MovieBoxPlaybackState
+} from './moviebox'
+import type {
   ColorAdjust,
   DownloadProgress,
   InstallationIdentity,
@@ -127,6 +132,13 @@ export interface LumenApi {
     start(url: string): Promise<{ id: string }>
     cancel(id: string): void
     onProgress(cb: (e: DownloadProgress) => void): Unsubscribe
+  }
+  /** Local playback hand-off from a user-authorized MovieBox desktop session. */
+  movieBox: {
+    getSession(): Promise<MovieBoxBridgeSession>
+    updateState(state: MovieBoxPlaybackState): void
+    action(action: string, id?: string, value?: number): void
+    onEvent(cb: (event: MovieBoxBridgeEvent) => void): Unsubscribe
   }
   /**
    * Together: synchronized watch parties. The relay socket lives in main so

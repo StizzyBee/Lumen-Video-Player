@@ -40,7 +40,7 @@ interface PlayerStore {
   hdrContent: boolean | null
 
   attachHost(el: HTMLElement | null): void
-  openItem(item: LibraryItem, opts?: { queue?: string[]; startOver?: boolean; forceMpv?: boolean }): void
+  openItem(item: LibraryItem, opts?: { queue?: string[]; startOver?: boolean; forceMpv?: boolean; startAt?: number }): void
   /** Re-open the current item in the mpv engine (manual override / auto-fallback) */
   playInMpv(): void
   openPaths(paths: string[]): Promise<void>
@@ -451,8 +451,9 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
     const queue = opts?.queue ?? get().queue
     const queueIndex = queue.indexOf(item.id)
 
-    const startAt =
-      !opts?.startOver && settings.playback.rememberPosition && item.positionSec ? item.positionSec : 0
+    const startAt = opts?.startAt != null
+      ? Math.max(0, opts.startAt)
+      : !opts?.startOver && settings.playback.rememberPosition && item.positionSec ? item.positionSec : 0
 
     // Route MKV/AVI/HEVC-in-mkv etc. to the mpv engine when the built-in
     // Chromium engine can't handle the container — or when the user prefers

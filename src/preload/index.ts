@@ -79,6 +79,12 @@ const api: LumenApi = {
     cancel: (id) => ipcRenderer.send('dl:cancel', id),
     onProgress: (cb) => on('dl:progress', cb)
   },
+  movieBox: {
+    getSession: () => ipcRenderer.invoke('moviebox:get-session'),
+    updateState: (state) => ipcRenderer.send('moviebox:update-state', state),
+    action: (action, id, value) => ipcRenderer.send('moviebox:action', action, id, value),
+    onEvent: (cb) => on('moviebox:event', cb)
+  },
   together: {
     host: (opts) => ipcRenderer.invoke('together:host', opts),
     join: (opts) => ipcRenderer.invoke('together:join', opts),

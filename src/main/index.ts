@@ -11,6 +11,7 @@ import { needsCompatibilityRenderer } from './mpv/renderer'
 import { mergeSettings, VIDEO_EXTENSIONS, type Playlist, type Settings } from '@shared/types'
 import { cleanupStaleUpdateCache } from './update-cleanup'
 import { InstallationIdentityStore } from './identity'
+import { MovieBoxBridgeClient, movieBoxLaunchArgs } from './moviebox/bridge'
 
 app.setName('Lumen')
 
@@ -91,6 +92,9 @@ async function bootstrap(): Promise<void> {
 
   let mpvCompatibilityRenderer = false
   const win = createMainWindow(settings.get().theme.material)
+  const movieBox = new MovieBoxBridgeClient((event) => {
+    if (!win.isDestroyed()) win.webContents.send('moviebox:event', event)
+  })
   startupTrace('main window created')
   const surfaceHostPath = app.isPackaged
     ? join(process.resourcesPath, 'surface', 'Lumen.SurfaceHost.exe')
@@ -111,9 +115,13 @@ async function bootstrap(): Promise<void> {
     openedFile,
     mpvCompatibilityRenderer: () => mpvCompatibilityRenderer,
     surfaceHostPath,
-    identity
+    identity,
+    movieBox
   })
   startupTrace('ipc registered')
+
+  const initialMovieBox = movieBoxLaunchArgs(process.argv)
+  if (initialMovieBox) movieBox.connect(initialMovieBox)
 
   // Never hold the first window behind graphics detection. The registry check
   // completes in the background while the renderer loads and updates the mpv
@@ -132,8 +140,10 @@ async function bootstrap(): Promise<void> {
 
   app.on('second-instance', (_e, argv) => {
     const file = fileArgFrom(argv)
+    const movieBoxArgs = movieBoxLaunchArgs(argv)
     if (win.isMinimized()) win.restore()
     win.focus()
+    if (movieBoxArgs) movieBox.connect(movieBoxArgs)
     if (file) {
       pathGuard.allowFileDir(file)
       void library.addPaths([file]).then(() => win.webContents.send('app:open-file', file))
@@ -141,6 +151,7 @@ async function bootstrap(): Promise<void> {
   })
 
   app.on('window-all-closed', () => {
+    movieBox.stop()
     void Promise.all([library.flush(), settings.flush(), playlists.flush()]).finally(() => app.quit())
   })
 }

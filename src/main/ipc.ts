@@ -24,6 +24,8 @@ import { registerTogetherIpc } from './together/ipc'
 import { checkForUpdate, downloadUpdate, installUpdate, registerUpdater } from './updater'
 import { wingetInstall } from './winget'
 import type { InstallationIdentityStore } from './identity'
+import type { MovieBoxBridgeClient } from './moviebox/bridge'
+import type { MovieBoxPlaybackState } from '@shared/moviebox'
 
 export interface IpcDeps {
   win: BrowserWindow
@@ -35,6 +37,7 @@ export interface IpcDeps {
   mpvCompatibilityRenderer: () => boolean
   surfaceHostPath: string
   identity: InstallationIdentityStore
+  movieBox: MovieBoxBridgeClient
 }
 
 export function registerIpc(deps: IpcDeps): void {
@@ -161,7 +164,8 @@ export function registerIpc(deps: IpcDeps): void {
     try {
       const videoWid = await mpv.load(path, {
         ...opts,
-        ytdlpPath: isUrl ? ytdlp.detect().ytdlp ?? undefined : undefined
+        ytdlpPath: isUrl ? ytdlp.detect().ytdlp ?? undefined : undefined,
+        userAgent: isUrl ? deps.movieBox.userAgentFor(path) : undefined
       })
       await createSurface(videoWid)
       // The render layer never activates, but explicitly restore Lumen focus
@@ -236,6 +240,15 @@ export function registerIpc(deps: IpcDeps): void {
     destroySurface()
   })
 
+  // ── MovieBox authorized playback hand-off ────────────────────────────────
+  // The third-party app owns authentication and selects the stream. Lumen only
+  // consumes the local named-pipe session it was explicitly launched with.
+  ipcMain.handle('moviebox:get-session', () => deps.movieBox.session())
+  ipcMain.on('moviebox:update-state', (_e, state: MovieBoxPlaybackState) => deps.movieBox.updateState(state))
+  ipcMain.on('moviebox:action', (_e, action: string, id?: string, value?: number) => {
+    deps.movieBox.queueAction(action, id, value)
+  })
+
   // ── yt-dlp downloads (pull a video from a website into the library) ───────
   const ytdlp = new YtdlpManager(() => ({
     pathEnv: process.env.PATH,
@@ -287,6 +300,7 @@ export function registerIpc(deps: IpcDeps): void {
 
   // Never leave a headless mpv playing or downloads running after Lumen exits
   app.on('before-quit', () => {
+    deps.movieBox.stop()
     mpv.stop()
     destroySurface()
     ytdlp.stopAll()

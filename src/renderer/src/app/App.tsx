@@ -25,6 +25,7 @@ import { bindingFromEvent, resolveKeymap } from '@/core/shortcuts'
 import { platform } from '@/core/platform'
 import { kickThumbnailQueue } from '@/core/thumbs'
 import { openDroppedFiles } from './openFiles'
+import { initMovieBoxBridge } from '@/core/moviebox'
 import { page } from '@/design/motion'
 import styles from './App.module.css'
 
@@ -36,6 +37,7 @@ function boot(): void {
   setupCommands()
   const settingsReady = useSettings.getState().init()
   void usePlayer.getState().detectMpv()
+  initMovieBoxBridge()
   void useDownloads.getState().init()
   void useLibrary.getState().init().then(() => kickThumbnailQueue())
   useLibrary.subscribe((s, prev) => {

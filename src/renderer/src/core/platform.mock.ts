@@ -233,6 +233,12 @@ export function createMockLumen(): LumenApi {
       cancel: () => {},
       onProgress: () => () => {}
     },
+    movieBox: {
+      getSession: async () => ({ connected: false, reply: null, error: null }),
+      updateState: () => {},
+      action: () => {},
+      onEvent: () => () => {}
+    },
     together: {
       // Watch parties need a real socket, which a browser tab cannot open to
       // an arbitrary host. The mock keeps the UI mountable and inert.
