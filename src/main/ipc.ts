@@ -68,7 +68,9 @@ export function registerIpc(deps: IpcDeps): void {
       const p = screen.getCursorScreenPoint()
       const moved = Math.abs(p.x - lastCursor.x) > 2 || Math.abs(p.y - lastCursor.y) > 2
       lastCursor = p
-      if (moved && !win().isDestroyed()) win().webContents.send('mpv:event', { type: 'cursor' })
+      if (moved && !win().isDestroyed() && win().isFocused()) {
+        win().webContents.send('mpv:event', { type: 'cursor' })
+      }
     }, 300)
   }
   const stopCursorWatch = (): void => {

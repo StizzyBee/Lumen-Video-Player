@@ -11,7 +11,6 @@ internal static class Program
     private const long WS_CHILD = 0x40000000L;
     private const long WS_POPUP = 0x80000000L;
     private const long WS_VISIBLE = 0x10000000L;
-    private const long WS_DISABLED = 0x08000000L;
     private const long WS_OVERLAPPEDWINDOW = 0x00CF0000L;
     private const long WS_CLIPCHILDREN = 0x02000000L;
     private const long WS_CLIPSIBLINGS = 0x04000000L;
@@ -22,11 +21,13 @@ internal static class Program
     private const long WS_EX_TRANSPARENT = 0x00000020L;
 
     private const uint SWP_NOACTIVATE = 0x0010;
+    private const uint SWP_NOZORDER = 0x0004;
     private const uint SWP_FRAMECHANGED = 0x0020;
     private const uint SWP_SHOWWINDOW = 0x0040;
     private const int SW_HIDE = 0;
     private const int SW_SHOWNOACTIVATE = 4;
     private const int VK_LBUTTON = 0x01;
+    private const uint GA_ROOTOWNER = 3;
     private static readonly IntPtr HWND_TOP = IntPtr.Zero;
     private static readonly object StateLock = new object();
     private static readonly object OutputLock = new object();
@@ -34,6 +35,7 @@ internal static class Program
     private static int overlayY;
     private static int overlayWidth;
     private static int overlayHeight;
+    private static IntPtr ownerWindow;
     private static volatile bool monitorPointer;
 
     [StructLayout(LayoutKind.Sequential)]
@@ -81,6 +83,15 @@ internal static class Program
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetCursorPos(out Point point);
 
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr WindowFromPoint(Point point);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetAncestor(IntPtr window, uint flags);
+
     private static int Main(string[] args)
     {
         long ownerValue;
@@ -105,6 +116,7 @@ internal static class Program
         IntPtr owner = new IntPtr(ownerValue);
         IntPtr video = new IntPtr(videoValue);
         if (!IsWindow(owner) || !IsWindow(video)) return 3;
+        ownerWindow = owner;
 
         ConfigureOverlay(owner, video);
         PositionOverlay(video, x, y, width, height);
@@ -148,10 +160,11 @@ internal static class Program
 
         long style = GetWindowLongPtr(video, GWL_STYLE).ToInt64();
         style &= ~(WS_CHILD | WS_OVERLAPPEDWINDOW);
-        // A disabled top-level window still renders without taking focus.
         // Pointer gestures are observed below and relayed to Electron because
         // cross-process overlay windows cannot reliably pass hit tests through.
-        style |= WS_POPUP | WS_VISIBLE | WS_DISABLED | WS_CLIPCHILDREN | WS_CLIPSIBLINGS;
+        // Keep the surface enabled: clicking a disabled owned HWND causes the
+        // Windows default warning sound on some systems.
+        style |= WS_POPUP | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS;
         SetWindowLongPtr(video, GWL_STYLE, new IntPtr(style));
 
         long exStyle = GetWindowLongPtr(video, GWL_EXSTYLE).ToInt64();
@@ -184,7 +197,10 @@ internal static class Program
             y,
             Math.Max(1, width),
             Math.Max(1, height),
-            SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+            // Preserve the owned window's z-order. Re-inserting at HWND_TOP on
+            // every bounds refresh can raise the video surface over an app that
+            // the user placed in front of Lumen.
+            SWP_NOACTIVATE | SWP_NOZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
         ShowWindow(video, SW_SHOWNOACTIVATE);
     }
 
@@ -204,12 +220,12 @@ internal static class Program
 
             if (down && !wasDown)
             {
-                pressStartedInside = haveCursor && IsInside(cursor);
+                pressStartedInside = haveCursor && IsInteractivePoint(cursor);
                 pressPoint = cursor;
             }
             else if (!down && wasDown)
             {
-                if (pressStartedInside && haveCursor && IsInside(cursor) && DistanceSquared(pressPoint, cursor) <= 64)
+                if (pressStartedInside && haveCursor && IsInteractivePoint(cursor) && DistanceSquared(pressPoint, cursor) <= 64)
                 {
                     long now = DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;
                     if (pendingClickAt != 0 && now - pendingClickAt <= 300 && DistanceSquared(pendingPoint, cursor) <= 64)
@@ -248,6 +264,13 @@ internal static class Program
             return point.X >= overlayX && point.X < overlayX + overlayWidth &&
                    point.Y >= overlayY && point.Y < overlayY + overlayHeight;
         }
+    }
+
+    private static bool IsInteractivePoint(Point point)
+    {
+        if (!IsInside(point) || GetForegroundWindow() != ownerWindow) return false;
+        IntPtr hit = WindowFromPoint(point);
+        return hit != IntPtr.Zero && GetAncestor(hit, GA_ROOTOWNER) == ownerWindow;
     }
 
     private static int DistanceSquared(Point a, Point b)
