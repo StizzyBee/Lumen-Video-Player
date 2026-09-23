@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { movieBoxLaunchArgs, normalizeMovieBoxState } from './bridge'
+import { movieBoxLaunchArgs, movieBoxLaunchData, normalizeMovieBoxState } from './bridge'
 
 describe('movieBoxLaunchArgs', () => {
   it('accepts a local pipe token and strips line breaks from the user agent', () => {
@@ -12,6 +12,21 @@ describe('movieBoxLaunchArgs', () => {
   it('rejects paths and remote pipe names', () => {
     expect(movieBoxLaunchArgs(['Lumen.exe', '--bridge', '\\\\server\\pipe\\name'])).toBeNull()
     expect(movieBoxLaunchArgs(['Lumen.exe', '--bridge', '..\\name'])).toBeNull()
+  })
+
+  it('falls back to the scoped launch environment', () => {
+    expect(movieBoxLaunchArgs(['Lumen.exe'], {
+      LUMEN_MOVIEBOX_PIPE: 'MovieBox-env-123',
+      LUMEN_MOVIEBOX_USER_AGENT: 'MovieBox\r\nAgent'
+    })).toEqual({ pipeName: 'MovieBox-env-123', userAgent: 'MovieBoxAgent' })
+  })
+
+  it('validates single-instance launch data', () => {
+    expect(movieBoxLaunchData({ pipeName: 'MovieBox-forwarded', userAgent: 'Agent' })).toEqual({
+      pipeName: 'MovieBox-forwarded',
+      userAgent: 'Agent'
+    })
+    expect(movieBoxLaunchData({ pipeName: '..\\remote', userAgent: null })).toBeNull()
   })
 })
 

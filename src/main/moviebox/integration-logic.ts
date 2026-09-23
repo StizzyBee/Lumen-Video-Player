@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 
-export const MOVIEBOX_BRIDGE_VERSION = '0.6.6'
-export const MOVIEBOX_HOOK_SHA256 = '1a1681bf7515391a126af2b6987922343c852c55b46aab455e19e3420921502a'
+export const MOVIEBOX_BRIDGE_VERSION = '0.6.7'
+export const MOVIEBOX_HOOK_SHA256 = '44a39e82b2e3e65c6ddbb969968b98935918844025ea727a38660faca003d3d9'
 export const MOVIEBOX_HARMONY_SHA256 = '4b5f44764316c833a3b1d184ba6f1df275c86a181cc595ec403a01049d1d6fb5'
 const RELEASE_BASE = `https://github.com/StizzyBee/Lumen-Video-Player/releases/download/v${MOVIEBOX_BRIDGE_VERSION}`
 export const MOVIEBOX_HOOK_URL = `${RELEASE_BASE}/MovieBoxPlayerMod.Hook.dll`

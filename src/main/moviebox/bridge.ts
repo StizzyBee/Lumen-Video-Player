@@ -25,6 +25,8 @@ export interface MovieBoxLaunchArgs {
   userAgent: string | null
 }
 
+type LaunchEnvironment = Partial<Record<'LUMEN_MOVIEBOX_PIPE' | 'LUMEN_MOVIEBOX_USER_AGENT', string | undefined>>
+
 function argValue(argv: string[], name: string): string | null {
   const index = argv.indexOf(name)
   if (index < 0 || index + 1 >= argv.length) return null
@@ -33,12 +35,25 @@ function argValue(argv: string[], name: string): string | null {
 }
 
 /** Only connect to a local named pipe; never accept a path or remote pipe host. */
-export function movieBoxLaunchArgs(argv: string[]): MovieBoxLaunchArgs | null {
-  const pipeName = argValue(argv, '--bridge')
-  if (!pipeName || !/^[A-Za-z0-9._-]{1,200}$/.test(pipeName)) return null
-  const rawUserAgent = argValue(argv, '--user-agent')
-  const userAgent = rawUserAgent ? rawUserAgent.replace(/[\r\n]/g, '').slice(0, 512) : null
+function validatedLaunchArgs(pipeName: unknown, rawUserAgent: unknown): MovieBoxLaunchArgs | null {
+  if (typeof pipeName !== 'string' || !/^[A-Za-z0-9._-]{1,200}$/.test(pipeName)) return null
+  const userAgent = typeof rawUserAgent === 'string'
+    ? rawUserAgent.replace(/[\r\n]/g, '').slice(0, 512) || null
+    : null
   return { pipeName, userAgent }
+}
+
+export function movieBoxLaunchArgs(argv: string[], env: LaunchEnvironment = {}): MovieBoxLaunchArgs | null {
+  return validatedLaunchArgs(
+    argValue(argv, '--bridge') ?? env.LUMEN_MOVIEBOX_PIPE,
+    argValue(argv, '--user-agent') ?? env.LUMEN_MOVIEBOX_USER_AGENT
+  )
+}
+
+export function movieBoxLaunchData(value: unknown): MovieBoxLaunchArgs | null {
+  if (!value || typeof value !== 'object') return null
+  const candidate = value as { pipeName?: unknown; userAgent?: unknown }
+  return validatedLaunchArgs(candidate.pipeName, candidate.userAgent)
 }
 
 function finite(value: unknown, fallback = 0): number {

@@ -11,7 +11,7 @@ import { needsCompatibilityRenderer } from './mpv/renderer'
 import { mergeSettings, VIDEO_EXTENSIONS, type Playlist, type Settings } from '@shared/types'
 import { cleanupStaleUpdateCache } from './update-cleanup'
 import { InstallationIdentityStore } from './identity'
-import { MovieBoxBridgeClient, movieBoxLaunchArgs } from './moviebox/bridge'
+import { MovieBoxBridgeClient, movieBoxLaunchArgs, movieBoxLaunchData } from './moviebox/bridge'
 import { MovieBoxIntegration } from './moviebox/integration'
 
 app.setName('Lumen')
@@ -28,11 +28,33 @@ const startupTrace = (stage: string): void => {
 //  • The HDR pipeline engages automatically on HDR-capable displays.
 app.commandLine.appendSwitch('enable-features', 'PlatformHEVCDecoderSupport')
 
-const gotLock = app.requestSingleInstanceLock()
+interface DeferredSecondInstance {
+  argv: string[]
+  additionalData: Record<string, unknown>
+}
+
+const initialMovieBoxLaunch = movieBoxLaunchArgs(process.argv, process.env)
+const pendingSecondInstances: DeferredSecondInstance[] = []
+let dispatchSecondInstance: ((launch: DeferredSecondInstance) => void) | null = null
+const gotLock = app.requestSingleInstanceLock(
+  initialMovieBoxLaunch ? { movieBox: initialMovieBoxLaunch } : {}
+)
 if (!gotLock) {
   startupTrace('single-instance lock denied')
   app.quit()
 } else {
+  // Register this before bootstrap so a bridge launch cannot be lost while
+  // the primary instance is still opening its library and renderer.
+  app.on('second-instance', (_event, argv, _workingDirectory, additionalData) => {
+    const launch: DeferredSecondInstance = {
+      argv,
+      additionalData: additionalData && typeof additionalData === 'object'
+        ? additionalData as Record<string, unknown>
+        : {}
+    }
+    if (dispatchSecondInstance) dispatchSecondInstance(launch)
+    else pendingSecondInstances.push(launch)
+  })
   startupTrace('single-instance lock acquired')
   registerLumenScheme()
   void bootstrap().catch((error) => {
@@ -123,8 +145,7 @@ async function bootstrap(): Promise<void> {
   })
   startupTrace('ipc registered')
 
-  const initialMovieBox = movieBoxLaunchArgs(process.argv)
-  if (initialMovieBox) movieBox.connect(initialMovieBox)
+  if (initialMovieBoxLaunch) movieBox.connect(initialMovieBoxLaunch)
   if (process.argv.includes('--launch-moviebox')) {
     void movieBoxIntegration.launch().catch((error) => {
       dialog.showErrorBox('MovieBox bridge', error instanceof Error ? error.message : String(error))
@@ -146,10 +167,11 @@ async function bootstrap(): Promise<void> {
     )
   }
 
-  app.on('second-instance', (_e, argv) => {
+  dispatchSecondInstance = ({ argv, additionalData }): void => {
     const file = fileArgFrom(argv)
-    const movieBoxArgs = movieBoxLaunchArgs(argv)
+    const movieBoxArgs = movieBoxLaunchData(additionalData.movieBox) ?? movieBoxLaunchArgs(argv)
     if (win.isMinimized()) win.restore()
+    if (!win.isVisible()) win.show()
     win.focus()
     if (movieBoxArgs) movieBox.connect(movieBoxArgs)
     if (argv.includes('--launch-moviebox')) {
@@ -161,7 +183,8 @@ async function bootstrap(): Promise<void> {
       pathGuard.allowFileDir(file)
       void library.addPaths([file]).then(() => win.webContents.send('app:open-file', file))
     }
-  })
+  }
+  for (const launch of pendingSecondInstances.splice(0)) dispatchSecondInstance(launch)
 
   app.on('window-all-closed', () => {
     movieBox.stop()
