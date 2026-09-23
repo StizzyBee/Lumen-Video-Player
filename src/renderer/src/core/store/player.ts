@@ -233,8 +233,19 @@ export interface PlaybackIntercept {
 
 let intercept: PlaybackIntercept | null = null
 
+export interface ExternalPlaybackNavigation {
+  next(): boolean
+  previous(): boolean
+}
+
+let externalNavigation: ExternalPlaybackNavigation | null = null
+
 export function setPlaybackIntercept(next: PlaybackIntercept | null): void {
   intercept = next
+}
+
+export function setExternalPlaybackNavigation(next: ExternalPlaybackNavigation | null): void {
+  externalNavigation = next
 }
 
 // ── Raw engine access, for the sync controller only ────────────────────────
@@ -718,6 +729,7 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
   },
 
   next() {
+    if (externalNavigation?.next()) return
     const s = get()
     if (s.queueIndex < s.queue.length - 1) {
       const item = useLibrary.getState().byId.get(s.queue[s.queueIndex + 1])
@@ -725,6 +737,7 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
     }
   },
   previous() {
+    if (externalNavigation?.previous()) return
     const s = get()
     // Standard behavior: restart if we're past 3s, else go to previous
     if (s.time > 3 || s.queueIndex <= 0) {

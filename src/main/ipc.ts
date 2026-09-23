@@ -52,7 +52,14 @@ export function registerIpc(deps: IpcDeps): void {
   // remains a top-level swapchain because nested HWNDs render black on VMware.
   type SurfaceRect = { x: number; y: number; width: number; height: number; innerWidth: number }
   const surface = new NativeSurfaceHost(deps.surfaceHostPath, (event) => {
-    if (!win().isDestroyed()) win().webContents.send('mpv:event', { type: `surface-${event}` })
+    if (win().isDestroyed()) return
+    if (!win().isFocused()) {
+      if (win().isMinimized()) win().restore()
+      if (!win().isVisible()) win().show()
+      win().focus()
+      win().webContents.focus()
+    }
+    win().webContents.send('mpv:event', { type: `surface-${event}` })
   })
   let lastRect: SurfaceRect | null = null
   let cursorTimer: NodeJS.Timeout | null = null

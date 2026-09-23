@@ -1,4 +1,4 @@
-import type { MovieBoxPlaybackCommand } from '@shared/moviebox'
+import type { MovieBoxPlaybackChoice, MovieBoxPlaybackCommand } from '@shared/moviebox'
 
 export function authorizedMovieBoxUrl(value: string): string | null {
   try {
@@ -7,6 +7,18 @@ export function authorizedMovieBoxUrl(value: string): string | null {
   } catch {
     return null
   }
+}
+
+export function movieBoxEpisodeNavigation(
+  active: boolean,
+  isSeries: boolean,
+  episodes: MovieBoxPlaybackChoice[]
+): { canPrevious: boolean; canNext: boolean } {
+  if (!active || !isSeries) return { canPrevious: false, canNext: false }
+  if (!episodes.length) return { canPrevious: true, canNext: true }
+  const selected = episodes.findIndex((episode) => episode.Selected)
+  if (selected < 0) return { canPrevious: true, canNext: true }
+  return { canPrevious: selected > 0, canNext: selected < episodes.length - 1 }
 }
 
 function numberValue(values: Record<string, unknown>, ...names: string[]): number | null {

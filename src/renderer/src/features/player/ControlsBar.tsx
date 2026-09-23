@@ -3,7 +3,7 @@ import {
   Play, Pause, SkipBack, SkipForward, Volume2, Volume1, VolumeX, Maximize, Minimize,
   Captions, Repeat, Repeat1, PictureInPicture2, GalleryVerticalEnd, MoreHorizontal,
   Camera, Activity, AudioLines, ListVideo, PanelRightClose, FilePlus2, RotateCcw, RotateCw, Bookmark,
-  MonitorCog, Sun, Users
+  MonitorCog, Sun, Users, Tv
 } from 'lucide-react'
 import { availableResolutions, DEFAULT_COLOR } from '@/core/video'
 import type { ColorAdjust } from '@shared/types'
@@ -19,6 +19,8 @@ import { Dialog } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import { Timeline } from './Timeline'
 import { formatTime, formatRate } from '@/core/utils/format'
+import { selectMovieBoxEpisode, useMovieBoxPlayback } from '@/core/moviebox'
+import { movieBoxEpisodeNavigation } from '@/core/moviebox-logic'
 import styles from './ControlsBar.module.css'
 
 const SPEED_PRESETS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3]
@@ -83,7 +85,7 @@ function ColorDialog({
   )
 }
 
-type OpenMenu = 'subs' | 'speed' | 'audio' | 'video' | 'more' | null
+type OpenMenu = 'subs' | 'speed' | 'audio' | 'video' | 'episodes' | 'more' | null
 
 export function ControlsBar({ onMenuOpenChange }: { onMenuOpenChange: (open: boolean) => void }): ReactNode {
   const p = usePlayer()
@@ -94,6 +96,7 @@ export function ControlsBar({ onMenuOpenChange }: { onMenuOpenChange: (open: boo
   const togetherPanelOpen = useTogether((s) => s.panelOpen)
   const togetherCount = useTogether((s) => s.room?.members.length ?? 0)
   const togetherActive = togetherCount > 0
+  const movieBox = useMovieBoxPlayback()
 
   const [menu, setMenu] = useState<OpenMenu>(null)
   const [anchor, setAnchor] = useState<MenuAnchor | null>(null)
@@ -318,6 +321,27 @@ export function ControlsBar({ onMenuOpenChange }: { onMenuOpenChange: (open: boo
     { id: 'mini', label: 'Mini player', icon: <PanelRightClose size={16} />, hint: 'Ctrl+M', onSelect: () => ui.toggleMiniMode() }
   ]
 
+  const episodeEntries: MenuEntry[] = movieBox.episodes.flatMap((episode, index, all) => {
+    const previousGroup = index > 0 ? all[index - 1]?.Group : null
+    return [
+      ...(episode.Group && episode.Group !== previousGroup
+        ? [{ type: 'header', label: episode.Group } as const]
+        : []),
+      {
+        id: `moviebox-episode-${episode.Id}`,
+        label: episode.Label,
+        checked: episode.Selected,
+        onSelect: () => selectMovieBoxEpisode(episode.Id)
+      }
+    ]
+  })
+
+  const { canNext: movieBoxCanNext, canPrevious: movieBoxCanPrevious } = movieBoxEpisodeNavigation(
+    movieBox.active,
+    movieBox.isSeries,
+    movieBox.episodes
+  )
+
   return (
     <div className={styles.bar} data-controls>
       <Timeline />
@@ -328,10 +352,22 @@ export function ControlsBar({ onMenuOpenChange }: { onMenuOpenChange: (open: boo
 
         {!mini && (
           <>
-            <IconButton onVideo label="Previous" kbd="P" onClick={() => p.previous()}>
+            <IconButton
+              onVideo
+              label={movieBox.active && movieBox.isSeries ? 'Previous episode' : 'Previous'}
+              kbd="P"
+              onClick={() => p.previous()}
+              disabled={movieBox.active && movieBox.isSeries && !movieBoxCanPrevious}
+            >
               <SkipBack size={19} />
             </IconButton>
-            <IconButton onVideo label="Next" kbd="N" onClick={() => p.next()} disabled={p.queueIndex >= p.queue.length - 1}>
+            <IconButton
+              onVideo
+              label={movieBox.active && movieBox.isSeries ? 'Next episode' : 'Next'}
+              kbd="N"
+              onClick={() => p.next()}
+              disabled={!movieBoxCanNext && p.queueIndex >= p.queue.length - 1}
+            >
               <SkipForward size={19} />
             </IconButton>
           </>
@@ -402,6 +438,12 @@ export function ControlsBar({ onMenuOpenChange }: { onMenuOpenChange: (open: boo
               <ListVideo size={19} />
             </IconButton>
 
+            {movieBox.active && movieBox.isSeries && movieBox.episodes.length > 0 && (
+              <IconButton onVideo label="Episodes" active={menu === 'episodes'} onClick={openMenu('episodes')}>
+                <Tv size={19} />
+              </IconButton>
+            )}
+
             <IconButton
               onVideo
               label={togetherActive ? `Watch party · ${togetherCount}` : 'Watch together'}
@@ -439,6 +481,7 @@ export function ControlsBar({ onMenuOpenChange }: { onMenuOpenChange: (open: boo
       <Menu open={menu === 'speed'} anchor={anchor} entries={speedEntries} onClose={closeMenu} minWidth={180} />
       <Menu open={menu === 'audio'} anchor={anchor} entries={audioEntries} onClose={closeMenu} sticky minWidth={220} />
       <Menu open={menu === 'video'} anchor={anchor} entries={videoEntries} onClose={closeMenu} sticky minWidth={230} />
+      <Menu open={menu === 'episodes'} anchor={anchor} entries={episodeEntries} onClose={closeMenu} minWidth={280} />
       <Menu open={menu === 'more'} anchor={anchor} entries={moreEntries} onClose={closeMenu} minWidth={220} />
 
       <ColorDialog open={colorDialog} color={video.color} onChange={setColor} onClose={() => setColorDialog(false)} />

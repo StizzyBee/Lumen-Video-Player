@@ -36,6 +36,7 @@ internal static class Program
     private static int overlayWidth;
     private static int overlayHeight;
     private static IntPtr ownerWindow;
+    private static IntPtr videoWindow;
     private static volatile bool monitorPointer;
 
     [StructLayout(LayoutKind.Sequential)]
@@ -84,9 +85,6 @@ internal static class Program
     private static extern bool GetCursorPos(out Point point);
 
     [DllImport("user32.dll")]
-    private static extern IntPtr GetForegroundWindow();
-
-    [DllImport("user32.dll")]
     private static extern IntPtr WindowFromPoint(Point point);
 
     [DllImport("user32.dll")]
@@ -117,6 +115,7 @@ internal static class Program
         IntPtr video = new IntPtr(videoValue);
         if (!IsWindow(owner) || !IsWindow(video)) return 3;
         ownerWindow = owner;
+        videoWindow = video;
 
         ConfigureOverlay(owner, video);
         PositionOverlay(video, x, y, width, height);
@@ -268,9 +267,13 @@ internal static class Program
 
     private static bool IsInteractivePoint(Point point)
     {
-        if (!IsInside(point) || GetForegroundWindow() != ownerWindow) return false;
+        if (!IsInside(point)) return false;
         IntPtr hit = WindowFromPoint(point);
-        return hit != IntPtr.Zero && GetAncestor(hit, GA_ROOTOWNER) == ownerWindow;
+        // The enabled mpv surface is normally the hit window. Electron child
+        // HWNDs resolve back to Lumen's root owner. Anything else belongs to
+        // an app covering Lumen and must never become a playback gesture.
+        return hit == videoWindow ||
+               (hit != IntPtr.Zero && GetAncestor(hit, GA_ROOTOWNER) == ownerWindow);
     }
 
     private static int DistanceSquared(Point a, Point b)

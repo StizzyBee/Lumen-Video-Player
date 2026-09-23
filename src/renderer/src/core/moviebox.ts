@@ -1,11 +1,13 @@
 import type {
+  MovieBoxPlaybackChoice,
   MovieBoxPlaybackCommand,
   MovieBoxPlaybackReply,
   MovieBoxPlaybackSource
 } from '@shared/moviebox'
+import { create } from 'zustand'
 import { platform } from '@/core/platform'
 import { makeStreamItem } from '@/core/streams'
-import { usePlayer } from '@/core/store/player'
+import { setExternalPlaybackNavigation, usePlayer } from '@/core/store/player'
 import { useSettings } from '@/core/store/settings'
 import { useUi } from '@/core/store/ui'
 import { authorizedMovieBoxUrl, movieBoxCommandEffect } from '@/core/moviebox-logic'
@@ -19,6 +21,27 @@ let endedRevision = 0
 let desiredPlaying = true
 let desiredRate = 1
 let suppressClose = false
+
+interface MovieBoxPlaybackUiState {
+  active: boolean
+  isSeries: boolean
+  episodes: MovieBoxPlaybackChoice[]
+}
+
+export const useMovieBoxPlayback = create<MovieBoxPlaybackUiState>(() => ({
+  active: false,
+  isSeries: false,
+  episodes: []
+}))
+
+export function selectMovieBoxEpisode(id: string): void {
+  if (!useMovieBoxPlayback.getState().active) return
+  platform.movieBox.action('episode', id)
+}
+
+function resetMovieBoxUi(): void {
+  useMovieBoxPlayback.setState({ active: false, isSeries: false, episodes: [] })
+}
 
 function applyCommand(command: MovieBoxPlaybackCommand): void {
   const effect = movieBoxCommandEffect(command)
@@ -38,6 +61,7 @@ function applyCommand(command: MovieBoxPlaybackCommand): void {
       player.close()
       activeRevision = 0
       activeItemId = null
+      resetMovieBoxUi()
       break
     case 'seek':
       player.seekTo(effect.value)
@@ -71,6 +95,11 @@ async function openSource(source: MovieBoxPlaybackSource): Promise<void> {
   if (revision === activeRevision && usePlayer.getState().item?.id === activeItemId) return
 
   activeRevision = revision
+  useMovieBoxPlayback.setState((state) => ({
+    active: true,
+    isSeries: source.BoxType === 2,
+    episodes: source.BoxType === 2 ? state.episodes : []
+  }))
   desiredPlaying = source.Playing !== false
   desiredRate = Number.isFinite(source.Rate) ? Math.max(0.06, Math.min(16, source.Rate)) : 1
   openedRevision = 0
@@ -88,6 +117,12 @@ async function openSource(source: MovieBoxPlaybackSource): Promise<void> {
 
 function handleReply(reply: MovieBoxPlaybackReply): void {
   if (reply.Source) void openSource(reply.Source)
+  if (reply.Metadata) {
+    useMovieBoxPlayback.setState({
+      isSeries: reply.Metadata.IsSeries,
+      episodes: reply.Metadata.Episodes ?? []
+    })
+  }
   for (const command of reply.Commands ?? []) applyCommand(command)
   if (reply.Error) {
     useUi.getState().toast({ kind: 'warn', title: 'MovieBox bridge', desc: reply.Error }, 5000)
@@ -97,6 +132,7 @@ function handleReply(reply: MovieBoxPlaybackReply): void {
     usePlayer.getState().close()
     activeRevision = 0
     activeItemId = null
+    resetMovieBoxUi()
   }
 }
 
@@ -123,9 +159,25 @@ export function initMovieBoxBridge(): void {
   if (initialized || platform.app.platform !== 'win32') return
   initialized = true
 
+  setExternalPlaybackNavigation({
+    next: () => {
+      const session = useMovieBoxPlayback.getState()
+      if (!session.active || !session.isSeries) return false
+      platform.movieBox.action('next')
+      return true
+    },
+    previous: () => {
+      const session = useMovieBoxPlayback.getState()
+      if (!session.active || !session.isSeries) return false
+      platform.movieBox.action('previous')
+      return true
+    }
+  })
+
   platform.movieBox.onEvent((event) => {
     if (event.type === 'reply') handleReply(event.reply)
     else if (event.type === 'disconnected' && activeRevision) {
+      resetMovieBoxUi()
       useUi.getState().toast({
         kind: 'warn',
         title: 'MovieBox disconnected',
@@ -144,6 +196,7 @@ export function initMovieBoxBridge(): void {
       suppressClose = false
       activeRevision = 0
       activeItemId = null
+      resetMovieBoxUi()
       return
     }
     if (player.item?.id !== activeItemId) return

@@ -116,7 +116,14 @@ async function bootstrap(): Promise<void> {
   let mpvCompatibilityRenderer = false
   const win = createMainWindow(settings.get().theme.material)
   const movieBox = new MovieBoxBridgeClient((event) => {
-    if (!win.isDestroyed()) win.webContents.send('moviebox:event', event)
+    if (win.isDestroyed()) return
+    if (event.type === 'connected') {
+      if (win.isMinimized()) win.restore()
+      if (!win.isVisible()) win.show()
+      win.focus()
+      win.webContents.focus()
+    }
+    win.webContents.send('moviebox:event', event)
   })
   const movieBoxIntegration = new MovieBoxIntegration(userData, () => win)
   startupTrace('main window created')
