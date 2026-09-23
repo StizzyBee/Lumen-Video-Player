@@ -243,7 +243,7 @@ export function createMockLumen(): LumenApi {
         filesReady: false,
         shortcutsReady: false,
         movieBoxPath: null,
-        bridgeVersion: '0.6.4',
+        bridgeVersion: '0.6.6',
         canActivate: false
       }),
       activateIntegration: async () => { throw new Error('desktop-only') },
@@ -252,7 +252,7 @@ export function createMockLumen(): LumenApi {
         filesReady: false,
         shortcutsReady: false,
         movieBoxPath: null,
-        bridgeVersion: '0.6.4',
+        bridgeVersion: '0.6.6',
         canActivate: false
       }),
       chooseApp: async () => { throw new Error('desktop-only') },

@@ -40,7 +40,7 @@ export class MovieBoxIntegration {
 
   async status(): Promise<MovieBoxIntegrationStatus> {
     const config = await this.readConfig()
-    const filesReady = existsSync(this.hookPath) && existsSync(this.harmonyPath)
+    const filesReady = await this.bridgeFilesCurrent()
     const movieBoxPath = config.movieBoxPath && existsSync(config.movieBoxPath) ? config.movieBoxPath : null
     const shortcutsReady = this.shortcutPaths().every((path) => existsSync(path))
     return {
@@ -98,7 +98,7 @@ export class MovieBoxIntegration {
   }
 
   private async ensureBridgeFiles(): Promise<void> {
-    if (existsSync(this.hookPath) && existsSync(this.harmonyPath)) return
+    if (await this.bridgeFilesCurrent()) return
     const [hook, harmony] = await Promise.all([
       this.downloadVerified(MOVIEBOX_HOOK_URL, MOVIEBOX_HOOK_SHA256, 512 * 1024),
       this.downloadVerified(MOVIEBOX_HARMONY_URL, MOVIEBOX_HARMONY_SHA256, 4 * 1024 * 1024)
@@ -109,6 +109,22 @@ export class MovieBoxIntegration {
     await Promise.all([fsp.writeFile(hookTemp, hook), fsp.writeFile(harmonyTemp, harmony)])
     await Promise.all([fsp.rm(this.hookPath, { force: true }), fsp.rm(this.harmonyPath, { force: true })])
     await Promise.all([fsp.rename(hookTemp, this.hookPath), fsp.rename(harmonyTemp, this.harmonyPath)])
+  }
+
+  private async bridgeFilesCurrent(): Promise<boolean> {
+    return (await Promise.all([
+      this.fileMatches(this.hookPath, MOVIEBOX_HOOK_SHA256),
+      this.fileMatches(this.harmonyPath, MOVIEBOX_HARMONY_SHA256)
+    ])).every(Boolean)
+  }
+
+  private async fileMatches(path: string, expectedSha256: string): Promise<boolean> {
+    try {
+      const file = await fsp.readFile(path)
+      return createHash('sha256').update(file).digest('hex') === expectedSha256
+    } catch {
+      return false
+    }
   }
 
   private async downloadVerified(url: string, expectedSha256: string, maxBytes: number): Promise<Buffer> {
