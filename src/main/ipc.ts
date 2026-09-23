@@ -148,7 +148,10 @@ export function registerIpc(deps: IpcDeps): void {
     }),
     deps.mpvCompatibilityRenderer
   )
-  ipcMain.handle('mpv:detect', () => mpv.detect(true))
+  // The manager caches a verified executable path. Re-scanning every launch
+  // added avoidable work to MovieBox hand-offs; explicit path changes and
+  // installs already call refresh().
+  ipcMain.handle('mpv:detect', () => mpv.detect())
   ipcMain.handle('mpv:locate', async () => {
     const res = await dialog.showOpenDialog(win(), {
       title: 'Locate mpv.exe',

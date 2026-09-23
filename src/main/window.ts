@@ -17,7 +17,7 @@ export interface MiniModeState {
 
 export const miniState: MiniModeState = { active: false }
 
-export function createMainWindow(material: WindowMaterial): BrowserWindow {
+export function createMainWindow(material: WindowMaterial, showOnReady = true): BrowserWindow {
   const nativeMaterial = resolveNativeWindowMaterial(material, process.platform, osRelease)
   const win = new BrowserWindow({
     width: 1320,
@@ -40,7 +40,9 @@ export function createMainWindow(material: WindowMaterial): BrowserWindow {
     }
   })
 
-  win.once('ready-to-show', () => win.show())
+  win.once('ready-to-show', () => {
+    if (showOnReady) win.show()
+  })
 
   // External links never navigate the app window
   win.webContents.setWindowOpenHandler(({ url }) => {

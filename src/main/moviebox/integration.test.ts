@@ -13,12 +13,18 @@ describe('movieBoxCandidates', () => {
 
 describe('movieBoxLaunchEnvironment', () => {
   it('scopes the startup hook to the launched MovieBox process', () => {
-    const env = movieBoxLaunchEnvironment({ KEEP: 'yes' }, 'C:\\Bridge\\Hook.dll', 'C:\\Lumen\\Lumen.exe')
+    const env = movieBoxLaunchEnvironment(
+      { KEEP: 'yes' },
+      'C:\\Bridge\\Hook.dll',
+      'C:\\Lumen\\Lumen.exe',
+      'MovieBoxPlayerMod-prewarm'
+    )
     expect(env).toMatchObject({
       KEEP: 'yes',
       MOVIEBOX_PLAYER: 'LUMEN',
       LUMEN_PLAYER_EXE: 'C:\\Lumen\\Lumen.exe',
-      DOTNET_STARTUP_HOOKS: 'C:\\Bridge\\Hook.dll'
+      DOTNET_STARTUP_HOOKS: 'C:\\Bridge\\Hook.dll',
+      LUMEN_MOVIEBOX_PIPE: 'MovieBoxPlayerMod-prewarm'
     })
   })
 })

@@ -15,6 +15,7 @@ import { MovieBoxBridgeClient, movieBoxLaunchArgs, movieBoxLaunchData } from './
 import { MovieBoxIntegration } from './moviebox/integration'
 
 app.setName('Lumen')
+const movieBoxStandbyLaunch = process.argv.includes('--launch-moviebox')
 
 const startupTracePath = process.env['LUMEN_STARTUP_TRACE']
 const startupTrace = (stage: string): void => {
@@ -114,18 +115,23 @@ async function bootstrap(): Promise<void> {
   installLumenProtocol(thumbsDir)
 
   let mpvCompatibilityRenderer = false
-  const win = createMainWindow(settings.get().theme.material)
+  const win = createMainWindow(settings.get().theme.material, !movieBoxStandbyLaunch)
+  let movieBoxStandby = movieBoxStandbyLaunch
   const movieBox = new MovieBoxBridgeClient((event) => {
     if (win.isDestroyed()) return
-    if (event.type === 'connected') {
+    if (event.type === 'reply' && event.reply.Source) {
+      movieBoxStandby = false
       if (win.isMinimized()) win.restore()
       if (!win.isVisible()) win.show()
       win.focus()
       win.webContents.focus()
+    } else if (event.type === 'disconnected' && movieBoxStandby && !win.isVisible()) {
+      app.quit()
+      return
     }
     win.webContents.send('moviebox:event', event)
   })
-  const movieBoxIntegration = new MovieBoxIntegration(userData, () => win)
+  const movieBoxIntegration = new MovieBoxIntegration(userData, () => win, (args) => movieBox.connect(args))
   startupTrace('main window created')
   const surfaceHostPath = app.isPackaged
     ? join(process.resourcesPath, 'surface', 'Lumen.SurfaceHost.exe')

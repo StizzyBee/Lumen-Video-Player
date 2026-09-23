@@ -1,9 +1,10 @@
 import { app, dialog, net, shell, type BrowserWindow } from 'electron'
 import { spawn } from 'node:child_process'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, promises as fsp } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import type { MovieBoxIntegrationStatus } from '@shared/moviebox'
+import type { MovieBoxLaunchArgs } from './bridge'
 import {
   MOVIEBOX_BRIDGE_VERSION,
   MOVIEBOX_HARMONY_SHA256,
@@ -30,7 +31,8 @@ export class MovieBoxIntegration {
 
   constructor(
     userData: string,
-    private readonly window: () => BrowserWindow
+    private readonly window: () => BrowserWindow,
+    private readonly connectBridge: (args: MovieBoxLaunchArgs) => void
   ) {
     this.installDir = join(userData, 'integrations', 'moviebox')
     this.hookPath = join(this.installDir, 'MovieBoxPlayerMod.Hook.dll')
@@ -87,12 +89,14 @@ export class MovieBoxIntegration {
   async launch(): Promise<void> {
     const state = await this.status()
     if (!state.active || !state.movieBoxPath) throw new Error('moviebox-integration-not-active')
+    const pipeName = `MovieBoxPlayerMod-${process.pid}-${randomUUID().replaceAll('-', '')}`
+    this.connectBridge({ pipeName, userAgent: null })
     const child = spawn(state.movieBoxPath, [], {
       cwd: dirname(state.movieBoxPath),
       detached: true,
       windowsHide: false,
       stdio: 'ignore',
-      env: movieBoxLaunchEnvironment(process.env, this.hookPath, process.execPath)
+      env: movieBoxLaunchEnvironment(process.env, this.hookPath, process.execPath, pipeName)
     })
     child.unref()
   }

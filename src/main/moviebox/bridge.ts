@@ -10,7 +10,10 @@ import { EMPTY_MOVIEBOX_STATE } from '@shared/moviebox'
 
 const MAX_LINE_BYTES = 8 * 1024 * 1024
 const POLL_MS = 100
+const IDLE_POLL_MS = 250
 const METADATA_MS = 2_000
+const CONNECT_RETRY_MS = 250
+const CONNECT_RETRY_LIMIT = 120
 
 type Send = (event: MovieBoxBridgeEvent) => void
 
@@ -74,8 +77,11 @@ export function normalizeMovieBoxState(value: MovieBoxPlaybackState): MovieBoxPl
 
 export class MovieBoxBridgeClient {
   private socket: net.Socket | null = null
+  private socketConnected = false
   private buffer = ''
   private timer: NodeJS.Timeout | null = null
+  private reconnectTimer: NodeJS.Timeout | null = null
+  private connectionGeneration = 0
   private inFlight = false
   private state: MovieBoxPlaybackState = { ...EMPTY_MOVIEBOX_STATE }
   private actions: PendingAction[] = []
@@ -92,7 +98,7 @@ export class MovieBoxBridgeClient {
     const reply = this.lastReply
       ? { ...this.lastReply, Source: this.lastReply.Source ?? this.activeSource }
       : this.activeSource ? { Source: this.activeSource } : null
-    return { connected: !!this.socket && !this.socket.destroyed, reply, error: this.lastError }
+    return { connected: this.socketConnected, reply, error: this.lastError }
   }
 
   userAgentFor(url: string): string | undefined {
@@ -100,7 +106,8 @@ export class MovieBoxBridgeClient {
   }
 
   connect(args: MovieBoxLaunchArgs): void {
-    if (this.activePipe === args.pipeName && this.socket && !this.socket.destroyed) return
+    if (this.activePipe === args.pipeName &&
+      ((this.socket && !this.socket.destroyed) || this.reconnectTimer)) return
     this.stop(false)
     this.activePipe = args.pipeName
     this.activeUserAgent = args.userAgent
@@ -109,12 +116,22 @@ export class MovieBoxBridgeClient {
     this.lastError = null
     this.state = { ...EMPTY_MOVIEBOX_STATE }
 
+    this.openSocket(args, this.connectionGeneration, 0)
+  }
+
+  private openSocket(args: MovieBoxLaunchArgs, generation: number, attempt: number): void {
+    if (generation !== this.connectionGeneration || this.activePipe !== args.pipeName) return
+
     const socket = net.connect(`\\\\.\\pipe\\${args.pipeName}`)
+    let connected = false
     this.socket = socket
     socket.setNoDelay(true)
     socket.setEncoding('utf8')
     socket.on('connect', () => {
-      if (this.socket !== socket) return
+      if (this.socket !== socket || generation !== this.connectionGeneration) return
+      connected = true
+      this.socketConnected = true
+      this.lastError = null
       this.send({ type: 'connected' })
       this.pollNow()
     })
@@ -124,10 +141,18 @@ export class MovieBoxBridgeClient {
       this.lastError = error.message
     })
     socket.on('close', () => {
-      if (this.socket !== socket) return
+      if (this.socket !== socket || generation !== this.connectionGeneration) return
       this.clearTimer()
       this.socket = null
+      this.socketConnected = false
       this.inFlight = false
+      if (!connected && attempt < CONNECT_RETRY_LIMIT && this.activePipe === args.pipeName) {
+        this.reconnectTimer = setTimeout(() => {
+          this.reconnectTimer = null
+          this.openSocket(args, generation, attempt + 1)
+        }, CONNECT_RETRY_MS)
+        return
+      }
       this.send({ type: 'disconnected', reason: this.lastError ?? undefined })
     })
   }
@@ -144,6 +169,7 @@ export class MovieBoxBridgeClient {
   }
 
   stop(sendClose = true): void {
+    this.connectionGeneration++
     const socket = this.socket
     if (socket && !socket.destroyed && sendClose) {
       try {
@@ -153,7 +179,10 @@ export class MovieBoxBridgeClient {
       }
     }
     this.clearTimer()
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer)
+    this.reconnectTimer = null
     this.socket = null
+    this.socketConnected = false
     this.inFlight = false
     this.buffer = ''
     socket?.destroy()
@@ -183,6 +212,10 @@ export class MovieBoxBridgeClient {
       this.lastReply = reply
       if (reply.Source && Number.isFinite(reply.Source.Revision)) {
         this.activeSource = reply.Source
+        const sourceUserAgent = typeof reply.Source.UserAgent === 'string'
+          ? reply.Source.UserAgent.replace(/[\r\n]/g, '').slice(0, 512)
+          : ''
+        if (sourceUserAgent) this.activeUserAgent = sourceUserAgent
         this.state.revision = Math.max(0, Math.trunc(reply.Source.Revision))
       }
       if (typeof reply.Error === 'string' && reply.Error) this.lastError = reply.Error
@@ -236,7 +269,10 @@ export class MovieBoxBridgeClient {
 
   private schedulePoll(): void {
     this.clearTimer()
-    this.timer = setTimeout(() => this.pollNow(), this.actions.length ? 0 : POLL_MS)
+    this.timer = setTimeout(
+      () => this.pollNow(),
+      this.actions.length ? 0 : this.activeSource ? POLL_MS : IDLE_POLL_MS
+    )
   }
 
   private clearTimer(): void {

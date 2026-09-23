@@ -20,6 +20,7 @@ export interface MovieBoxPlaybackSource {
   Season: number
   Episode: number
   BoxType: number
+  UserAgent?: string
 }
 
 export interface MovieBoxPlaybackChoice {
