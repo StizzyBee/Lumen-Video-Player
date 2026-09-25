@@ -1,0 +1,4 @@
+provider: github
+owner: StizzyBee
+repo: Lumen-Video-Player
+updaterCacheDirName: lumen-player-updater

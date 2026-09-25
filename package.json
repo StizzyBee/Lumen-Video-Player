@@ -1,7 +1,7 @@
 {
   "name": "lumen-player",
   "productName": "Lumen",
-  "version": "0.6.10",
+  "version": "0.6.11",
   "description": "A luminous home for your videos \u2014 a modern Windows video player.",
   "main": "out/main/index.js",
   "type": "module",
@@ -56,6 +56,10 @@
       {
         "from": "resources/surface/Lumen.SurfaceHost.exe",
         "to": "surface/Lumen.SurfaceHost.exe"
+      },
+      {
+        "from": "resources/app-update.yml",
+        "to": "app-update.yml"
       }
     ],
     "win": {

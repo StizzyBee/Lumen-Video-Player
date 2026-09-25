@@ -10,7 +10,7 @@ import { makeStreamItem } from '@/core/streams'
 import { setExternalPlaybackNavigation, usePlayer } from '@/core/store/player'
 import { useSettings } from '@/core/store/settings'
 import { useUi } from '@/core/store/ui'
-import { authorizedMovieBoxUrl, movieBoxCommandEffect } from '@/core/moviebox-logic'
+import { adjacentMovieBoxEpisodeId, authorizedMovieBoxUrl, movieBoxCommandEffect } from '@/core/moviebox-logic'
 
 let initialized = false
 let activeRevision = 0
@@ -163,13 +163,20 @@ export function initMovieBoxBridge(): void {
     next: () => {
       const session = useMovieBoxPlayback.getState()
       if (!session.active || !session.isSeries) return false
-      platform.movieBox.action('next')
+      const episodeId = adjacentMovieBoxEpisodeId(session.episodes, 'next')
+      // Before metadata arrives, preserve MovieBox's native next command.
+      // Once the full list is present, selecting the exact episode crosses
+      // season boundaries that its in-player Next command does not.
+      if (episodeId) platform.movieBox.action('episode', episodeId)
+      else if (!session.episodes.length) platform.movieBox.action('next')
       return true
     },
     previous: () => {
       const session = useMovieBoxPlayback.getState()
       if (!session.active || !session.isSeries) return false
-      platform.movieBox.action('previous')
+      const episodeId = adjacentMovieBoxEpisodeId(session.episodes, 'previous')
+      if (episodeId) platform.movieBox.action('episode', episodeId)
+      else if (!session.episodes.length) platform.movieBox.action('previous')
       return true
     }
   })

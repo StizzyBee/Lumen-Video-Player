@@ -10,8 +10,11 @@
 // tampered download and an executable launched on the user's machine.
 
 import { app, type BrowserWindow } from 'electron'
+import { appendFileSync } from 'node:fs'
+import { join } from 'node:path'
 import electronUpdater from 'electron-updater'
 import type { UpdateEvent } from '@shared/updates'
+import { LUMEN_UPDATE_FEED } from './updater-feed'
 
 // electron-updater is CJS; the named export is not reachable via ESM import.
 const { autoUpdater } = electronUpdater
@@ -23,6 +26,14 @@ export interface UpdaterDeps {
 }
 
 let wired = false
+
+function updaterLog(message: string): void {
+  try {
+    appendFileSync(join(app.getPath('userData'), 'updater.log'), `[${new Date().toISOString()}] ${message}\n`)
+  } catch {
+    // Diagnostics must never interfere with playback or startup.
+  }
+}
 
 export function registerUpdater(deps: UpdaterDeps): void {
   if (wired) return
@@ -36,16 +47,27 @@ export function registerUpdater(deps: UpdaterDeps): void {
   // The user decides. Both of these must stay false.
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = false
+  // Keep an explicit runtime feed as a second line of defense. The packaged
+  // app-update.yml is also shipped for electron-updater's normal discovery.
+  autoUpdater.setFeedURL(LUMEN_UPDATE_FEED)
+  updaterLog(`registered ${LUMEN_UPDATE_FEED.owner}/${LUMEN_UPDATE_FEED.repo} for ${app.getVersion()}`)
 
-  autoUpdater.on('checking-for-update', () => send({ type: 'checking' }))
+  autoUpdater.on('checking-for-update', () => {
+    updaterLog('checking')
+    send({ type: 'checking' })
+  })
   autoUpdater.on('update-available', (info) => {
+    updaterLog(`available ${info.version}`)
     send({
       type: 'available',
       version: info.version,
       notes: typeof info.releaseNotes === 'string' ? info.releaseNotes : null
     })
   })
-  autoUpdater.on('update-not-available', () => send({ type: 'none', version: app.getVersion() }))
+  autoUpdater.on('update-not-available', () => {
+    updaterLog(`up to date ${app.getVersion()}`)
+    send({ type: 'none', version: app.getVersion() })
+  })
   autoUpdater.on('download-progress', (p) => {
     send({
       type: 'progress',
@@ -54,11 +76,16 @@ export function registerUpdater(deps: UpdaterDeps): void {
       total: p.total
     })
   })
-  autoUpdater.on('update-downloaded', (info) => send({ type: 'ready', version: info.version }))
+  autoUpdater.on('update-downloaded', (info) => {
+    updaterLog(`downloaded ${info.version}`)
+    send({ type: 'ready', version: info.version })
+  })
   autoUpdater.on('error', (err) => {
     // A failed check is not worth interrupting anyone over — it usually just
     // means they are offline. The renderer keeps it quiet unless asked.
-    send({ type: 'error', message: err instanceof Error ? err.message : String(err) })
+    const message = err instanceof Error ? err.message : String(err)
+    updaterLog(`error ${message}`)
+    send({ type: 'error', message })
   })
 }
 
@@ -72,12 +99,14 @@ export async function checkForUpdate(): Promise<void> {
   if (!app.isPackaged) return
   try {
     await autoUpdater.checkForUpdates()
-  } catch {
+  } catch (error) {
+    updaterLog(`check failed ${error instanceof Error ? error.message : String(error)}`)
     /* reported through the error event */
   }
 }
 
 export async function downloadUpdate(): Promise<void> {
+  updaterLog('download requested')
   await autoUpdater.downloadUpdate()
 }
 
@@ -85,5 +114,6 @@ export async function downloadUpdate(): Promise<void> {
 export function installUpdate(): void {
   // isSilent false so the user sees the installer; isForceRunAfter so Lumen
   // comes back up afterwards rather than leaving them staring at a desktop.
+  updaterLog('install requested')
   autoUpdater.quitAndInstall(false, true)
 }

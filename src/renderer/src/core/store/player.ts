@@ -502,6 +502,7 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
       })
       useUi.getState().navigate({ name: 'player' })
       if (choice === 'mpv') {
+        const openingItemId = item.id
         void platform.mpv
           .play(item.path, {
             hdr: settings.video.hdr,
@@ -510,8 +511,16 @@ export const usePlayer = create<PlayerStore>((set, get) => ({
             volume: settings.audio.muted ? 0 : settings.audio.volume,
             startAt
           })
-          .then(() => set({ mpvEmbedded: true }))
+          .then(() => {
+            const current = get()
+            if (current.item?.id === openingItemId && current.mpvMode === 'playing') {
+              set({ mpvEmbedded: true })
+            }
+          })
           .catch((error: unknown) => {
+            // Episode changes deliberately cancel the old async MPV startup.
+            // Ignore that old promise after a newer item owns the player.
+            if (get().item?.id !== openingItemId) return
             const message = error instanceof Error ? error.message : String(error)
             platform.app.setPlaying(false)
             set({

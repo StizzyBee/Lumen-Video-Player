@@ -14,7 +14,7 @@ import {
 } from '@shared/types'
 import type { DeepPartial } from '@shared/lumen-api'
 import { pathGuard, mediaUrl } from './protocol'
-import { setMiniMode, setWindowMaterial } from './window'
+import { bringMainWindowToFront, setMiniMode, setWindowMaterial } from './window'
 import { MpvManager } from './mpv/manager'
 import { hasWinget, installMpvViaWinget } from './mpv/install'
 import { supportsEmbed } from './mpv/locate'
@@ -148,6 +148,7 @@ export function registerIpc(deps: IpcDeps): void {
     }),
     deps.mpvCompatibilityRenderer
   )
+  let mpvPlayRevision = 0
   // The manager caches a verified executable path. Re-scanning every launch
   // added avoidable work to MovieBox hand-offs; explicit path changes and
   // installs already call refresh().
@@ -174,6 +175,7 @@ export function registerIpc(deps: IpcDeps): void {
     // Embedded playback is mandatory. MPV starts hidden and is only shown
     // after its render layer has been adopted and positioned by Lumen.
     if (!mpv.canEmbed()) throw new Error('mpv-embed-required')
+    const playRevision = ++mpvPlayRevision
     destroySurface()
     try {
       const videoWid = await mpv.load(path, {
@@ -181,18 +183,21 @@ export function registerIpc(deps: IpcDeps): void {
         ytdlpPath: isUrl ? ytdlp.detect().ytdlp ?? undefined : undefined,
         userAgent: isUrl ? deps.movieBox.userAgentFor(path) : undefined
       })
+      if (playRevision !== mpvPlayRevision) throw new Error('mpv-load-superseded')
       await createSurface(videoWid)
+      if (playRevision !== mpvPlayRevision) throw new Error('mpv-load-superseded')
       // The render layer never activates, but explicitly restore Lumen focus
       // so keyboard shortcuts and its own controls remain authoritative.
       const w = win()
-      if (!w.isDestroyed()) {
-        w.focus()
-        w.webContents.focus()
-      }
+      bringMainWindowToFront(w)
       return { embedded: true }
     } catch (e) {
-      mpv.stop()
-      destroySurface()
+      // A new episode can supersede this asynchronous startup. Its stale
+      // rejection must never stop the newer MPV process or native surface.
+      if (playRevision === mpvPlayRevision) {
+        mpv.stop()
+        destroySurface()
+      }
       throw e
     }
   })
@@ -250,6 +255,7 @@ export function registerIpc(deps: IpcDeps): void {
     return null
   })
   ipcMain.on('mpv:stop', () => {
+    mpvPlayRevision++
     mpv.stop()
     destroySurface()
   })

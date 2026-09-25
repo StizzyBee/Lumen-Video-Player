@@ -21,6 +21,17 @@ export function movieBoxEpisodeNavigation(
   return { canPrevious: selected > 0, canNext: selected < episodes.length - 1 }
 }
 
+/** Select across the flattened, season-sorted MovieBox episode catalogue. */
+export function adjacentMovieBoxEpisodeId(
+  episodes: MovieBoxPlaybackChoice[],
+  direction: 'next' | 'previous'
+): string | null {
+  const selected = episodes.findIndex((episode) => episode.Selected)
+  if (selected < 0) return null
+  const target = direction === 'next' ? selected + 1 : selected - 1
+  return episodes[target]?.Id ?? null
+}
+
 function numberValue(values: Record<string, unknown>, ...names: string[]): number | null {
   for (const name of names) {
     const value = values[name]

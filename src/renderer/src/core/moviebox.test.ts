@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { authorizedMovieBoxUrl, movieBoxCommandEffect, movieBoxEpisodeNavigation } from './moviebox-logic'
+import {
+  adjacentMovieBoxEpisodeId,
+  authorizedMovieBoxUrl,
+  movieBoxCommandEffect,
+  movieBoxEpisodeNavigation
+} from './moviebox-logic'
 
 describe('authorizedMovieBoxUrl', () => {
   it('allows HTTP(S) media and rejects local or executable schemes', () => {
@@ -37,5 +42,22 @@ describe('movieBoxEpisodeNavigation', () => {
       canPrevious: true,
       canNext: false
     })
+  })
+})
+
+describe('adjacentMovieBoxEpisodeId', () => {
+  const episodes = [
+    { Id: '1:8', Label: 'E8', Group: 'Season 1', Selected: true },
+    { Id: '2:1', Label: 'E1', Group: 'Season 2', Selected: false },
+    { Id: '2:2', Label: 'E2', Group: 'Season 2', Selected: false }
+  ]
+
+  it('crosses from the last episode of one season to the first of the next', () => {
+    expect(adjacentMovieBoxEpisodeId(episodes, 'next')).toBe('2:1')
+  })
+
+  it('crosses backward to the preceding season', () => {
+    const selected = episodes.map((episode, index) => ({ ...episode, Selected: index === 1 }))
+    expect(adjacentMovieBoxEpisodeId(selected, 'previous')).toBe('1:8')
   })
 })

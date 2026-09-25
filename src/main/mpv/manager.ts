@@ -44,6 +44,7 @@ export class MpvManager {
   private cachedPath: string | null | undefined = undefined
   private trackReqPending = false
   private pending = new Map<number, PendingRequest>()
+  private loadGeneration = 0
 
   constructor(
     private send: Send,
@@ -90,7 +91,8 @@ export class MpvManager {
   ): Promise<number> {
     const mpv = this.detect()
     if (!mpv) throw new Error('mpv-not-found')
-    this.stop()
+    const generation = ++this.loadGeneration
+    this.cleanup()
     this.pipeName = `\\\\.\\pipe\\lumen-mpv-${process.pid}-${Date.now()}`
     // MPV's nested child-window swapchain is black on virtual GPUs. Start its
     // own render HWND hidden; IPC adopts it into Lumen before it is shown.
@@ -126,9 +128,9 @@ export class MpvManager {
       this.send('mpv:event', { type: 'error', message: 'mpv failed to start' })
       this.cleanup()
     })
-    await this.connect()
-    await this.waitForSocket()
-    return this.waitForWindowId()
+    await this.connect(generation)
+    await this.waitForSocket(generation)
+    return this.waitForWindowId(generation)
   }
 
   /** Apply HDR mode + color adjustments live (same mapping as launch args). */
@@ -138,25 +140,34 @@ export class MpvManager {
     }
   }
 
-  private async connect(attempt = 0): Promise<void> {
+  private async connect(generation: number, attempt = 0): Promise<void> {
     // A new load() rotates the pipe name; abandon retry loops from older loads
     const pipe = this.pipeName
+    if (generation !== this.loadGeneration) return
     if (attempt > 40) {
-      this.send('mpv:event', { type: 'error', message: 'mpv IPC did not come up' })
+      if (generation === this.loadGeneration) {
+        this.send('mpv:event', { type: 'error', message: 'mpv IPC did not come up' })
+      }
       return
     }
     await new Promise((r) => setTimeout(r, 100))
-    if (!this.proc || this.pipeName !== pipe) return
+    if (!this.proc || this.pipeName !== pipe || generation !== this.loadGeneration) return
     const sock = net.connect(pipe)
     sock.on('connect', () => {
+      if (generation !== this.loadGeneration || this.pipeName !== pipe) {
+        sock.destroy()
+        return
+      }
       this.sock = sock
       for (const o of OBSERVED) this.write(cmd.observe(o.id, o.name))
       this.send('mpv:event', { type: 'ready' })
     })
-    sock.on('data', (chunk) => this.onData(chunk.toString('utf8')))
+    sock.on('data', (chunk) => {
+      if (this.sock === sock && generation === this.loadGeneration) this.onData(chunk.toString('utf8'))
+    })
     sock.on('error', () => {
       sock.destroy()
-      void this.connect(attempt + 1)
+      void this.connect(generation, attempt + 1)
     })
     sock.on('close', () => {
       if (this.sock === sock) this.sock = null
@@ -226,8 +237,9 @@ export class MpvManager {
     })
   }
 
-  private async waitForSocket(): Promise<void> {
+  private async waitForSocket(generation: number): Promise<void> {
     for (let attempt = 0; attempt < 60; attempt++) {
+      if (generation !== this.loadGeneration) throw new Error('mpv-load-superseded')
       if (this.sock) return
       if (!this.proc) break
       await new Promise((resolve) => setTimeout(resolve, 100))
@@ -235,8 +247,9 @@ export class MpvManager {
     throw new Error('mpv-ipc-unavailable')
   }
 
-  private async waitForWindowId(): Promise<number> {
+  private async waitForWindowId(generation: number): Promise<number> {
     for (let attempt = 0; attempt < 50; attempt++) {
+      if (generation !== this.loadGeneration) throw new Error('mpv-load-superseded')
       if (!this.proc) break
       try {
         const response = await this.request(cmd.getProp('window-id'))
@@ -262,6 +275,7 @@ export class MpvManager {
   screenshot(path: string): void { this.write(cmd.screenshotTo(path)) }
 
   stop(): void {
+    this.loadGeneration++
     if (this.sock) {
       try { this.write(cmd.quit()) } catch { /* socket may be gone */ }
     }

@@ -16,6 +16,7 @@ export interface MiniModeState {
 }
 
 export const miniState: MiniModeState = { active: false }
+let activationTimer: NodeJS.Timeout | null = null
 
 export function createMainWindow(material: WindowMaterial, showOnReady = true): BrowserWindow {
   const nativeMaterial = resolveNativeWindowMaterial(material, process.platform, osRelease)
@@ -72,6 +73,33 @@ export function setWindowMaterial(win: BrowserWindow, material: WindowMaterial):
   const nativeMaterial = resolveNativeWindowMaterial(material, process.platform, osRelease)
   win.setBackgroundMaterial(nativeMaterial)
   win.setBackgroundColor(nativeMaterial === 'none' ? '#101014' : '#00000000')
+}
+
+/**
+ * Bring a user-initiated external playback hand-off in front of the app that
+ * launched it. Windows may ignore a plain focus() call from another process,
+ * so briefly raise Lumen without leaving normal playback permanently topmost.
+ */
+export function bringMainWindowToFront(win: BrowserWindow): void {
+  if (win.isDestroyed()) return
+  if (activationTimer) clearTimeout(activationTimer)
+  if (win.isMinimized()) win.restore()
+  if (!win.isVisible()) win.show()
+  if (process.platform === 'win32' && !miniState.active) {
+    win.setAlwaysOnTop(true, 'screen-saver')
+  }
+  win.moveTop()
+  win.focus()
+  win.webContents.focus()
+
+  activationTimer = setTimeout(() => {
+    activationTimer = null
+    if (win.isDestroyed()) return
+    if (!miniState.active) win.setAlwaysOnTop(false)
+    win.moveTop()
+    win.focus()
+    win.webContents.focus()
+  }, 600)
 }
 
 export function setMiniMode(win: BrowserWindow, on: boolean): void {

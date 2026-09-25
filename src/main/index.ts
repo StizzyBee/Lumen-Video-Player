@@ -3,7 +3,7 @@ import { join, isAbsolute, extname } from 'node:path'
 import { appendFileSync, existsSync } from 'node:fs'
 import { execFile } from 'node:child_process'
 import { registerLumenScheme, installLumenProtocol, pathGuard } from './protocol'
-import { createMainWindow } from './window'
+import { bringMainWindowToFront, createMainWindow } from './window'
 import { Library } from './library'
 import { JsonStore } from './store'
 import { registerIpc } from './ipc'
@@ -121,10 +121,7 @@ async function bootstrap(): Promise<void> {
     if (win.isDestroyed()) return
     if (event.type === 'reply' && event.reply.Source) {
       movieBoxStandby = false
-      if (win.isMinimized()) win.restore()
-      if (!win.isVisible()) win.show()
-      win.focus()
-      win.webContents.focus()
+      bringMainWindowToFront(win)
     } else if (event.type === 'disconnected' && movieBoxStandby && !win.isVisible()) {
       app.quit()
       return
@@ -183,9 +180,7 @@ async function bootstrap(): Promise<void> {
   dispatchSecondInstance = ({ argv, additionalData }): void => {
     const file = fileArgFrom(argv)
     const movieBoxArgs = movieBoxLaunchData(additionalData.movieBox) ?? movieBoxLaunchArgs(argv)
-    if (win.isMinimized()) win.restore()
-    if (!win.isVisible()) win.show()
-    win.focus()
+    bringMainWindowToFront(win)
     if (movieBoxArgs) movieBox.connect(movieBoxArgs)
     if (argv.includes('--launch-moviebox')) {
       void movieBoxIntegration.launch().catch((error) => {
